@@ -71,17 +71,16 @@ jobs:
           SIGNED="app/build/outputs/apk/debug/app-debug-signed.apk"
           BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           "$BUILD_TOOLS/zipalign" -f -p 4 "$APK" "$ALIGNED"
-          printf '%s' 'android' > /tmp/debug-keystore-pass
           "$BUILD_TOOLS/apksigner" sign \
             --ks debug.keystore \
-            --ks-pass file:/tmp/debug-keystore-pass \
-            --key-pass file:/tmp/debug-keystore-pass \
+            --ks-pass pass:android \
+            --key-pass pass:android \
             --ks-key-alias androiddebugkey \
             --out "$SIGNED" "$ALIGNED"
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$SIGNED"
           "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$SIGNED"
           mv "$SIGNED" "$APK"
-          rm -f "$ALIGNED" /tmp/debug-keystore-pass
+          rm -f "$ALIGNED"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
