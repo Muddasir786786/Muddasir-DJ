@@ -1,15 +1,10 @@
 name: Build Android APK
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
-      - master
-  pull_request:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
 
 jobs:
   build:
@@ -22,9 +17,8 @@ jobs:
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '21'
-          distribution: 'temurin'
-          cache: 'gradle'
 
       - name: Ensure Environment Configuration
         run: |
@@ -39,7 +33,7 @@ jobs:
       - name: Generate Debug Keystore if Missing
         run: |
           if [ ! -f debug.keystore ]; then
-            keytool -genkey -v \
+            keytool -genkeypair -v \
               -keystore debug.keystore \
               -alias androiddebugkey \
               -keyalg RSA \
@@ -50,11 +44,22 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
+      - name: Install Gradle
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gradle
+
+      - name: Generate Gradle Wrapper
+        run: |
+          gradle wrapper
+
       - name: Make Gradlew Executable
-        run: chmod +x ./gradlew
+        run: |
+          chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace -Djava.awt.headless=true
+        run: |
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -62,3 +67,4 @@ jobs:
           name: app-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
