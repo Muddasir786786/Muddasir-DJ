@@ -20,7 +20,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
+      - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '9.3.1'
@@ -28,22 +28,51 @@ jobs:
       - name: Prepare environment
         run: |
           if [ ! -f .env ]; then
-            cp .env.example .env
+            if [ -f .env.example ]; then
+              cp .env.example .env
+            else
+              touch .env
+            fi
           fi
 
-      - name: Create debug keystore
+      - name: Create release keystore
         run: |
-          mkdir -p "$HOME/.android"
-          if [ ! -f debug.keystore ]; then
-            keytool -genkeypair -v               -keystore debug.keystore               -alias androiddebugkey               -keyalg RSA               -keysize 2048               -validity 10000               -storepass android               -keypass android               -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -v \
+            -keystore my-upload-key.jks \
+            -alias upload \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Muddasir DJ,O=Muddasir,C=PK"
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks"
+            echo "STORE_PASSWORD=android"
+            echo "KEY_PASSWORD=android"
+          } >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify installable APK
+        run: |
+          APK="app/build/outputs/apk/release/app-release.apk"
+          BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+
+          "$BUILD_TOOLS/aapt2" dump badging "$APK" | tee /tmp/apk-badging.txt
+
+          if grep -q "testOnly='true'" /tmp/apk-badging.txt; then
+            echo "ERROR: APK is marked testOnly=true"
+            exit 1
           fi
 
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --no-daemon
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$APK"
 
-      - name: Upload APK
+      - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: app-release
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
