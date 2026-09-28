@@ -28,10 +28,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -39,6 +41,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.components.MiniPlayerBar
+import com.example.ui.components.YouTubeMiniPlayerBar
 import com.example.ui.navigation.Screen
 import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.HomeScreen
@@ -47,6 +50,7 @@ import com.example.ui.screens.NowPlayingScreen
 import com.example.ui.screens.QueueScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.YouTubePlayerDetailView
 import com.example.ui.screens.YouTubeScreen
 import com.example.ui.theme.DjAmberGold
 import com.example.ui.theme.DjBorderOutline
@@ -74,6 +78,11 @@ fun SoundOperatorApp(
     val visualizerBands by viewModel.visualizerBands.collectAsState()
     val isMasterMuted by viewModel.isMasterMuted.collectAsState()
 
+    val activeYouTubeVideo by viewModel.activeYouTubeVideo.collectAsState()
+    val isYouTubePlaying by com.example.playback.YouTubePlayerBridge.isPlaying.collectAsState()
+    val isYouTubeExpanded by viewModel.isYouTubeExpanded.collectAsState()
+    val youTubeSearchResults by viewModel.youTubeSearchResults.collectAsState()
+
     var isNowPlayingExpanded by remember { mutableStateOf(false) }
 
     // Intercept back button when Now Playing is full-screen
@@ -89,8 +98,17 @@ fun SoundOperatorApp(
                         .fillMaxWidth()
                         .background(DjObsidianBlack)
                 ) {
-                    // Docked Mini-Player Bar (shown when song is loaded and not full screen)
-                    if (currentSong != null && !isNowPlayingExpanded) {
+                    // Docked Mini-Player Bar (shown when song or video is playing and full player is not expanded)
+                    if (activeYouTubeVideo != null && !isYouTubeExpanded) {
+                        YouTubeMiniPlayerBar(
+                            video = activeYouTubeVideo!!,
+                            isPlaying = isYouTubePlaying,
+                            onPlayPauseClick = { viewModel.toggleYouTubePlayPause() },
+                            onCloseClick = { viewModel.stopYouTubePlayback() },
+                            onExpandClick = { viewModel.expandYouTubePlayer() },
+                            onNextClick = { viewModel.playNextYouTubeVideo() }
+                        )
+                    } else if (currentSong != null && !isNowPlayingExpanded && activeYouTubeVideo == null) {
                         MiniPlayerBar(
                             currentSong = currentSong!!,
                             isPlaying = isPlaying,
@@ -101,7 +119,8 @@ fun SoundOperatorApp(
                             onPlayPauseClick = { viewModel.togglePlayPause() },
                             onNextClick = { viewModel.playNext() },
                             onMuteToggle = { viewModel.toggleMasterMute() },
-                            onExpandClick = { isNowPlayingExpanded = true }
+                            onExpandClick = { isNowPlayingExpanded = true },
+                            onCloseClick = { viewModel.stopLocalPlayback() }
                         )
                     }
 
@@ -173,16 +192,11 @@ fun SoundOperatorApp(
                         onSearchClick = {
                             navController.navigate(Screen.Search.route)
                         },
-                        onYouTubeClick = {
-                            navController.navigate(Screen.YouTube.route)
-                        },
                         onLibraryClick = {
                             navController.navigate(Screen.Library.route)
                         },
-                        onNowPlayingClick = {
-                            if (currentSong != null) {
-                                isNowPlayingExpanded = true
-                            }
+                        onSettingsClick = {
+                            navController.navigate(Screen.Settings.route)
                         }
                     )
                 }
@@ -239,6 +253,30 @@ fun SoundOperatorApp(
                 viewModel = viewModel,
                 onCollapse = { isNowPlayingExpanded = false }
             )
+        }
+
+        // Full Screen / Persistent Background Official YouTube Player
+        if (activeYouTubeVideo != null) {
+            Box(
+                modifier = if (isYouTubeExpanded) {
+                    Modifier.fillMaxSize().zIndex(100f)
+                } else {
+                    Modifier.size(1.dp).alpha(0f).zIndex(-1f)
+                }
+            ) {
+                BackHandler(enabled = isYouTubeExpanded) {
+                    viewModel.minimizeYouTubePlayer()
+                }
+
+                YouTubePlayerDetailView(
+                    video = activeYouTubeVideo!!,
+                    onClose = { viewModel.minimizeYouTubePlayer() },
+                    onStop = { viewModel.stopYouTubePlayback() },
+                    onSwitchTrack = { newVideo -> viewModel.playYouTubeVideo(newVideo) },
+                    otherResults = youTubeSearchResults.filter { it.videoId != activeYouTubeVideo?.videoId },
+                    isExpanded = isYouTubeExpanded
+                )
+            }
         }
     }
 }

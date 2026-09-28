@@ -173,6 +173,8 @@ fun YouTubeEmbeddedPlayer(
     video: YouTubeVideoItem,
     onClose: () -> Unit,
     onSwitchTrack: ((YouTubeVideoItem) -> Unit)? = null,
+    onStop: (() -> Unit)? = null,
+    isExpanded: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -197,14 +199,15 @@ fun YouTubeEmbeddedPlayer(
 
     val actualEmbedUrl = "https://www.youtube.com/embed/${video.videoId}?enablejsapi=1&autoplay=1&playsinline=1&controls=1&rel=0&fs=1&origin=$refererHeader"
 
-    // Intercept hardware back button to cleanly close player
-    BackHandler {
+    // Intercept hardware back button only when full player is actively expanded
+    BackHandler(enabled = isExpanded) {
         onClose()
     }
 
     // Stop playback and destroy WebView when Composable is disposed
     DisposableEffect(video.videoId, reloadTrigger, playbackMode) {
         onDispose {
+            com.example.playback.YouTubePlayerBridge.unregisterWebView(webViewInstance)
             try {
                 webViewInstance?.evaluateJavascript(
                     "try { if (player && player.stopVideo) player.stopVideo(); } catch(e){}",
@@ -283,7 +286,7 @@ fun YouTubeEmbeddedPlayer(
             }
 
             IconButton(
-                onClick = onClose,
+                onClick = { onStop?.invoke() ?: onClose() },
                 modifier = Modifier
                     .size(28.dp)
                     .clip(CircleShape)
@@ -319,16 +322,20 @@ fun YouTubeEmbeddedPlayer(
                         refererHeader = refererHeader,
                         onReady = {
                             isPlayerLoading = false
+                            com.example.playback.YouTubePlayerBridge.onReady()
                         },
                         onError = { err ->
                             isPlayerLoading = false
                             rawErrorCode = err
+                            com.example.playback.YouTubePlayerBridge.onError(err)
                         },
                         onStateChange = { state ->
                             playerState = state
                             if (state == 1) {
                                 isPlayerLoading = false
                             }
+                            com.example.playback.YouTubePlayerBridge.onStateChange(state)
+                            com.example.playback.SoundPlayerManager.getInstance(context).onYouTubeStateChanged(state == 1)
                         },
                         onConsoleMsg = { msg ->
                             if (consoleLogs.size >= 8) consoleLogs.removeAt(0)
@@ -340,7 +347,10 @@ fun YouTubeEmbeddedPlayer(
                         onHttpErrorDesc = { desc ->
                             lastHttpError = desc
                         }
-                    ).also { webViewInstance = it }
+                    ).also {
+                        webViewInstance = it
+                        com.example.playback.YouTubePlayerBridge.registerWebView(it, video)
+                    }
                 }
             )
             }

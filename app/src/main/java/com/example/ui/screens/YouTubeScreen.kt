@@ -98,21 +98,6 @@ fun YouTubeScreen(
 
     val focusManager = LocalFocusManager.current
 
-    // If an active video is playing, provide full dedicated in-app player view
-    if (activeVideo != null) {
-        BackHandler {
-            viewModel.closeYouTubeVideo()
-        }
-
-        YouTubePlayerDetailView(
-            video = activeVideo!!,
-            onClose = { viewModel.closeYouTubeVideo() },
-            onSwitchTrack = { newVideo -> viewModel.playYouTubeVideo(newVideo) },
-            otherResults = searchResults.filter { it.videoId != activeVideo?.videoId }
-        )
-        return
-    }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -558,10 +543,13 @@ fun YouTubePlayerDetailView(
     video: YouTubeVideoItem,
     onClose: () -> Unit,
     onSwitchTrack: (YouTubeVideoItem) -> Unit,
-    otherResults: List<YouTubeVideoItem>
+    otherResults: List<YouTubeVideoItem>,
+    onStop: (() -> Unit)? = null,
+    isExpanded: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(DjObsidianBlack)
             .padding(16.dp)
@@ -575,7 +563,7 @@ fun YouTubePlayerDetailView(
             IconButton(onClick = onClose) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back to Search",
+                    contentDescription = "Minimize Player",
                     tint = DjTextPrimary
                 )
             }
@@ -595,7 +583,7 @@ fun YouTubePlayerDetailView(
                 )
             }
 
-            IconButton(onClick = onClose) {
+            IconButton(onClick = { onStop?.invoke() ?: onClose() }) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Close Player",
@@ -611,6 +599,8 @@ fun YouTubePlayerDetailView(
             video = video,
             onClose = onClose,
             onSwitchTrack = onSwitchTrack,
+            onStop = onStop,
+            isExpanded = isExpanded,
             modifier = Modifier.fillMaxWidth()
         )
 

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -129,6 +130,10 @@ fun NowPlayingScreen(
     var userSeekPos by remember { mutableFloatStateOf(0f) }
 
     val effectivePosition = if (isUserSeeking) userSeekPos.toLong() else currentPositionMs
+
+    BackHandler {
+        onCollapse()
+    }
 
     Column(
         modifier = modifier

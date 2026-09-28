@@ -20,6 +20,7 @@ import com.example.data.youtube.YouTubeVideoItem
 import com.example.playback.AudioOutputHelper
 import com.example.playback.AudioOutputStatus
 import com.example.playback.SoundPlayerManager
+import com.example.playback.YouTubePlayerBridge
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -165,6 +166,8 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun playSong(song: SongEntity, contextList: List<SongEntity> = emptyList()) {
+        _activeYouTubeVideo.value = null
+        _isYouTubeExpanded.value = false
         playerManager.playSong(song, contextList)
     }
 
@@ -356,6 +359,9 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
     private val _activeYouTubeVideo = MutableStateFlow<YouTubeVideoItem?>(null)
     val activeYouTubeVideo: StateFlow<YouTubeVideoItem?> = _activeYouTubeVideo.asStateFlow()
 
+    private val _isYouTubeExpanded = MutableStateFlow(false)
+    val isYouTubeExpanded: StateFlow<Boolean> = _isYouTubeExpanded.asStateFlow()
+
     val youTubeHistory: StateFlow<List<YouTubeHistoryEntity>> = repository.youTubeHistory
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -386,6 +392,16 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
     init {
         // Initialize results with curated event videos so operator can test embedded playback immediately
         _youTubeSearchResults.value = YouTubeApiClient.sampleEventVideos
+
+        YouTubePlayerBridge.onNextTrack = {
+            viewModelScope.launch { playNextYouTubeVideo() }
+        }
+        YouTubePlayerBridge.onPreviousTrack = {
+            viewModelScope.launch { playPreviousYouTubeVideo() }
+        }
+        YouTubePlayerBridge.onStopRequested = {
+            viewModelScope.launch { stopYouTubePlayback() }
+        }
     }
 
     /**
@@ -657,6 +673,8 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
         // Pause local offline player so audios do not overlap on event PA
         playerManager.pause()
         _activeYouTubeVideo.value = video
+        _isYouTubeExpanded.value = true
+        playerManager.onYouTubeStarted(video)
         viewModelScope.launch {
             repository.recordYouTubeView(
                 videoId = video.videoId,
@@ -668,8 +686,58 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun closeYouTubeVideo() {
+    fun minimizeYouTubePlayer() {
+        _isYouTubeExpanded.value = false
+    }
+
+    fun expandYouTubePlayer() {
+        _isYouTubeExpanded.value = true
+    }
+
+    fun stopYouTubePlayback() {
         _activeYouTubeVideo.value = null
+        _isYouTubeExpanded.value = false
+        playerManager.stopYouTubePlayback()
+    }
+
+    fun closeYouTubeVideo() {
+        stopYouTubePlayback()
+    }
+
+    fun toggleYouTubePlayPause() {
+        playerManager.togglePlayPause()
+    }
+
+    fun stopLocalPlayback() {
+        playerManager.stopAllPlayback()
+    }
+
+    fun playNextYouTubeVideo() {
+        val current = _activeYouTubeVideo.value ?: return
+        val results = _youTubeSearchResults.value
+        if (results.isEmpty()) return
+
+        val currentIndex = results.indexOfFirst { it.videoId == current.videoId }
+        val nextIndex = if (currentIndex != -1 && currentIndex < results.size - 1) {
+            currentIndex + 1
+        } else {
+            0
+        }
+        playYouTubeVideo(results[nextIndex])
+    }
+
+    fun playPreviousYouTubeVideo() {
+        val current = _activeYouTubeVideo.value ?: return
+        val results = _youTubeSearchResults.value
+        if (results.isEmpty()) return
+
+        val currentIndex = results.indexOfFirst { it.videoId == current.videoId }
+        val prevIndex = if (currentIndex > 0) {
+            currentIndex - 1
+        } else {
+            results.size - 1
+        }
+        playYouTubeVideo(results[prevIndex])
     }
 
     fun deleteYouTubeQuery(query: String) {
