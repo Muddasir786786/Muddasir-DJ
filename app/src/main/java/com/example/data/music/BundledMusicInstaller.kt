@@ -17,18 +17,11 @@ import java.util.zip.ZipInputStream
 
 object BundledMusicInstaller {
     private const val TAG = "BundledMusicInstaller"
-    private const val INSTALL_VERSION = 1
+    private const val INSTALL_VERSION = 2
     private const val TRACK_COUNT = 70
     private const val TOTAL_BYTES = 481630104L
-    private const val MARKER = ".bundled_music_v1"
+    private const val MARKER = ".bundled_music_v2"
 
-    private val archives = listOf(
-        "My_Music_Library.zip (1).zip",
-        "My_Music_Library.zip.zip",
-        "My_Music_Library.zip1.zip",
-        "My_Music_Library.zip11.zip",
-        "My_Music_Library.zip4.zip"
-    )
     private val extensions = setOf("mp3", "m4a", "aac", "wav", "ogg", "flac", "opus", "mp4", "3gp")
     private val categoryOrder = listOf("mehndi", "baraat", "walima", "dance", "slow", "entry", "dj")
 
@@ -44,13 +37,17 @@ object BundledMusicInstaller {
             return@withContext
         }
 
-        var available = false
+        val archives = discoverArchives(context.assets)
+        if (archives.isEmpty()) {
+            Log.i(TAG, "No bundled ZIP payload found in installed assets")
+            return@withContext
+        }
+
         var imported = 0
         var failed = 0
 
         for (archive in archives) {
             val input = openArchive(context.assets, archive) ?: continue
-            available = true
             input.use { stream ->
                 ZipInputStream(stream.buffered(64 * 1024)).use { zip ->
                     while (true) {
@@ -140,7 +137,7 @@ object BundledMusicInstaller {
             }
         }
 
-        if (available && failed == 0 && database.songDao().getBundledSongCount() >= TRACK_COUNT) {
+        if (failed == 0 && database.songDao().getBundledSongCount() >= TRACK_COUNT) {
             File(context.filesDir, MARKER).writeText(
                 "version=" + INSTALL_VERSION + "\ntracks=" + TRACK_COUNT + "\n"
             )
@@ -148,11 +145,26 @@ object BundledMusicInstaller {
         Log.i(TAG, "Bundled music install: imported=" + imported + ", failed=" + failed)
     }
 
-    private fun openArchive(assetManager: AssetManager, name: String): java.io.InputStream? {
-        for (path in listOf(name, "music_preload/" + name)) {
-            try { return assetManager.open(path) } catch (_: Exception) {}
+    private fun discoverArchives(assetManager: AssetManager): List<String> {
+        val found = mutableListOf<String>()
+        fun visit(path: String) {
+            val children = runCatching { assetManager.list(path) ?: emptyArray() }.getOrDefault(emptyArray())
+            for (child in children) {
+                val full = if (path.isEmpty()) child else "$path/$child"
+                val nested = runCatching { assetManager.list(full) ?: emptyArray() }.getOrDefault(emptyArray())
+                if (nested.isNotEmpty()) {
+                    visit(full)
+                } else if (child.endsWith(".zip", ignoreCase = true)) {
+                    found += full
+                }
+            }
         }
-        return null
+        visit("")
+        return found.distinct().sorted()
+    }
+
+    private fun openArchive(assetManager: AssetManager, name: String): java.io.InputStream? {
+        return runCatching { assetManager.open(name) }.getOrNull()
     }
 
     private fun safePath(path: String): Boolean =
