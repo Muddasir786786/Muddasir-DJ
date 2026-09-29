@@ -1,6 +1,7 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.BuildConfig
@@ -14,6 +15,7 @@ import com.example.data.entity.SongEntity
 import com.example.data.entity.YouTubeHistoryEntity
 import com.example.data.entity.YouTubeQueryHistoryEntity
 import com.example.data.repository.SoundOperatorRepository
+import com.example.data.music.MusicPackImporter
 import com.example.data.youtube.YouTubeApiClient
 import com.example.data.youtube.YouTubeSuggestionsProvider
 import com.example.data.youtube.YouTubeVideoItem
@@ -199,6 +201,9 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
     private var debounceTypingJob: Job? = null
     private var lastSearchedQuery: String? = null
 
+    private val _musicImportStatus = MutableStateFlow<String?>(null)
+    val musicImportStatus: StateFlow<String?> = _musicImportStatus.asStateFlow()
+
     init {
         audioOutputHelper.startListening()
 
@@ -252,6 +257,29 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
         }
         // Pre-load popular wedding & DJ tracks for online background streaming
         searchOnlineMusic("wedding bhangra")
+    }
+
+
+    fun importMusicPack(uri: Uri) {
+        viewModelScope.launch {
+            _musicImportStatus.value = "Importing music pack…"
+            try {
+                val tracks = MusicPackImporter.importZip(getApplication(), uri)
+                val imported = repository.importTracks(tracks)
+                _musicImportStatus.value = if (imported > 0) {
+                    "Imported $imported real audio tracks."
+                } else {
+                    "No new audio tracks found in this pack."
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("SoundOperatorVM", "Music pack import failed", e)
+                _musicImportStatus.value = "Music pack import failed: \${e.localizedMessage ?: "invalid ZIP"}"
+            }
+        }
+    }
+
+    fun clearMusicImportStatus() {
+        _musicImportStatus.value = null
     }
 
     override fun onCleared() {
