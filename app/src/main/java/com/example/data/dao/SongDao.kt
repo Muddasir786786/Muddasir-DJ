@@ -75,6 +75,12 @@ interface SongDao {
     @Query("SELECT COUNT(*) FROM songs")
     suspend fun getSongCount(): Int
 
+    @Query("SELECT * FROM songs WHERE contentHash = :contentHash LIMIT 1")
+    suspend fun getBundledSongByHash(contentHash: String): SongEntity?
+
+    @Query("SELECT COUNT(*) FROM songs WHERE source = 'bundled'")
+    suspend fun getBundledSongCount(): Int
+
     @Query("SELECT * FROM songs WHERE filePath = :filePath LIMIT 1")
     suspend fun getSongByFilePath(filePath: String): SongEntity?
 }
