@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -86,6 +88,14 @@ fun LibraryScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
+    val musicImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            viewModel.importMusicPack(it)
+        }
+    }
+
     val allSongs by viewModel.allSongs.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
@@ -93,6 +103,7 @@ fun LibraryScreen(
     val currentSong by viewModel.currentSong.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val favoriteIds by viewModel.favoriteSongIds.collectAsState()
+    val musicImportStatus by viewModel.musicImportStatus.collectAsState()
 
     val tabs = listOf("All Songs", "Categories", "Playlists", "Music Packs")
     val activeColors = com.example.ui.theme.LocalDjColors.current
@@ -143,6 +154,15 @@ fun LibraryScreen(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        if (musicImportStatus != null) {
+            Text(
+                text = musicImportStatus!!,
+                color = if (musicImportStatus!!.startsWith("Imported")) DjNeonEmerald else DjTextSecondary,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            )
+        }
 
         // Tabs Row
         ScrollableTabRow(
