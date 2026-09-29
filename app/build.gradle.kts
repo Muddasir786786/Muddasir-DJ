@@ -10,6 +10,7 @@ plugins {
 }
 
 android {
+  assetPacks += listOf(":music_preload")
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
