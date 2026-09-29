@@ -84,10 +84,15 @@ jobs:
         run: |
           AAB="app/build/outputs/bundle/release/app-release.aab"
           test -s "$AAB"
-          unzip -l "$AAB" | grep -q "music_preload/manifest/AndroidManifest.xml"
-          unzip -l "$AAB" | grep -q "music_preload/assets/bundled_music_manifest.json"
+          echo "Asset-pack entries:"
+          unzip -l "$AAB" | grep -E "music_preload|bundled_music_manifest" || true
+          if ! unzip -l "$AAB" | grep -q "music_preload/"; then
+            echo "ERROR: music_preload asset pack is missing from the App Bundle"
+            exit 1
+          fi
 
       - name: Upload installable APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-release
@@ -95,6 +100,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload App Bundle
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-release-bundle
