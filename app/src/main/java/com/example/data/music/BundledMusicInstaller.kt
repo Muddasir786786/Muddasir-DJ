@@ -17,26 +17,16 @@ import java.util.zip.ZipInputStream
 
 object BundledMusicInstaller {
     private const val TAG = "BundledMusicInstaller"
-    private const val INSTALL_VERSION = 2
-    private const val TRACK_COUNT = 70
-    private const val TOTAL_BYTES = 481630104L
-    private const val MARKER = ".bundled_music_v2"
+    private const val INSTALL_VERSION = 3
+    private const val MARKER = ".bundled_music_v3"
 
     private val extensions = setOf("mp3", "m4a", "aac", "wav", "ogg", "flac", "opus", "mp4", "3gp")
     private val categoryOrder = listOf("mehndi", "baraat", "walima", "dance", "slow", "entry", "dj")
 
     suspend fun installIfAvailable(context: Context, database: AppDatabase) = withContext(Dispatchers.IO) {
-        if (database.songDao().getBundledSongCount() >= TRACK_COUNT &&
-            File(context.filesDir, MARKER).exists()
-        ) return@withContext
+        if (File(context.filesDir, MARKER).exists()) return@withContext
 
         val root = File(context.filesDir, "bundled-music/library").apply { mkdirs() }
-        val free = StatFs(context.filesDir.absolutePath).availableBytes
-        if (free < (TOTAL_BYTES * 1.08).toLong()) {
-            Log.w(TAG, "Not enough free storage for bundled library")
-            return@withContext
-        }
-
         val archives = discoverArchives(context.assets)
         if (archives.isEmpty()) {
             Log.i(TAG, "No bundled ZIP payload found in installed assets")
@@ -137,9 +127,11 @@ object BundledMusicInstaller {
             }
         }
 
-        if (failed == 0 && database.songDao().getBundledSongCount() >= TRACK_COUNT) {
+        if (failed == 0 && imported > 0) {
             File(context.filesDir, MARKER).writeText(
-                "version=" + INSTALL_VERSION + "\ntracks=" + TRACK_COUNT + "\n"
+                "version=" + INSTALL_VERSION + "\ntracks=" +
+                    database.songDao().getBundledSongCount() + "\narchives=" +
+                    archives.size + "\n"
             )
         }
         Log.i(TAG, "Bundled music install: imported=" + imported + ", failed=" + failed)
