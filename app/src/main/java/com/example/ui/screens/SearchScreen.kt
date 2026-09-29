@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -24,17 +23,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,22 +54,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.entity.CategoryEntity
 import com.example.ui.components.SongListItem
-import com.example.ui.theme.DjAmberGold
-import com.example.ui.theme.DjBorderOutline
-import com.example.ui.theme.DjCrimsonCue
-import com.example.ui.theme.DjDeepSurface
-import com.example.ui.theme.DjElevatedCard
-import com.example.ui.theme.DjHighlightCard
-import com.example.ui.theme.DjNeonEmerald
-import com.example.ui.theme.DjObsidianBlack
-import com.example.ui.theme.DjTextPrimary
-import com.example.ui.theme.DjTextSecondary
-import com.example.ui.theme.DjTextTertiary
+import com.example.ui.theme.LocalDjColors
 import com.example.viewmodel.SoundOperatorViewModel
 
 @Composable
@@ -82,9 +66,11 @@ fun SearchScreen(
     onSearchYouTube: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var selectedSearchTab by remember { mutableIntStateOf(0) } // 0 = Local Library, 1 = YouTube Search
+    var selectedSearchTab by remember { mutableIntStateOf(0) } // 0 = Unified All, 1 = Local Offline, 2 = Online YouTube
 
     val localSearchQuery by viewModel.searchQuery.collectAsState()
+    val youTubeQuery by viewModel.youTubeQuery.collectAsState()
+
     val categories by viewModel.categories.collectAsState()
     val selectedCategory by viewModel.selectedCategoryFilter.collectAsState()
     val localResults by viewModel.filteredSearchResults.collectAsState()
@@ -93,384 +79,643 @@ fun SearchScreen(
     val isPlaying by viewModel.isPlaying.collectAsState()
     val favoriteIds by viewModel.favoriteSongIds.collectAsState()
 
-    // YouTube State
-    val youTubeQuery by viewModel.youTubeQuery.collectAsState()
     val youTubeResults by viewModel.youTubeSearchResults.collectAsState()
     val isYouTubeSearching by viewModel.isYouTubeSearching.collectAsState()
     val youTubeSuggestions by viewModel.youTubeSuggestions.collectAsState()
     val youTubeRecentQueries by viewModel.youTubeRecentQueries.collectAsState()
-    val youTubeError by viewModel.youTubeSearchError.collectAsState()
 
+    val onlineMusicResults by viewModel.onlineMusicResults.collectAsState()
+    val isOnlineMusicSearching by viewModel.isOnlineMusicSearching.collectAsState()
+    val onlineMusicError by viewModel.onlineMusicError.collectAsState()
+
+    val activeColors = LocalDjColors.current
     val focusManager = LocalFocusManager.current
+
+    // Keep active search input unified
+    val activeQuery = if (selectedSearchTab == 2) youTubeQuery else localSearchQuery
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DjObsidianBlack)
+            .background(activeColors.background)
             .padding(top = 16.dp)
     ) {
-        // Search Screen Title
+        // Search Header Title & Subtitle
         Column(
             modifier = Modifier.padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = "Fast Music Search",
-                color = DjTextPrimary,
+                text = "Unified Music Search",
+                color = activeColors.textPrimary,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold
             )
-
-            // Distinct Dual Tabs: Local Library vs Official YouTube Search
-            TabRow(
-                selectedTabIndex = selectedSearchTab,
-                containerColor = DjDeepSurface,
-                contentColor = DjTextPrimary,
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedSearchTab]),
-                        height = 3.dp,
-                        color = if (selectedSearchTab == 0) DjAmberGold else DjCrimsonCue
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .border(1.dp, DjBorderOutline, RoundedCornerShape(10.dp))
-            ) {
-                Tab(
-                    selected = selectedSearchTab == 0,
-                    onClick = { selectedSearchTab = 0 },
-                    text = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.LibraryMusic,
-                                contentDescription = null,
-                                tint = if (selectedSearchTab == 0) DjAmberGold else DjTextTertiary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "LOCAL LIBRARY",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selectedSearchTab == 0) DjAmberGold else DjTextTertiary
-                            )
-                        }
-                    }
-                )
-
-                Tab(
-                    selected = selectedSearchTab == 1,
-                    onClick = { selectedSearchTab = 1 },
-                    text = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.SmartDisplay,
-                                contentDescription = null,
-                                tint = if (selectedSearchTab == 1) DjCrimsonCue else DjTextTertiary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "YOUTUBE SEARCH",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selectedSearchTab == 1) DjCrimsonCue else DjTextTertiary
-                            )
-                        }
-                    }
-                )
-            }
+            Text(
+                text = "Find offline wedding tracks & stream online songs in one place",
+                color = activeColors.textSecondary,
+                fontSize = 12.sp
+            )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (selectedSearchTab == 0) {
-            // ==========================================
-            // TAB 0: OFFLINE LOCAL LIBRARY SEARCH
-            // ==========================================
-            Column(
+        // Unified Search Input Bar
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            OutlinedTextField(
+                value = activeQuery,
+                onValueChange = { q ->
+                    viewModel.setSearchQuery(q)
+                    viewModel.setYouTubeQuery(q)
+                },
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Local Search Input
-                OutlinedTextField(
-                    value = localSearchQuery,
-                    onValueChange = { viewModel.setSearchQuery(it) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp)),
-                    placeholder = {
-                        Text("Search title, artist, BPM, key, cues...", color = DjTextTertiary, fontSize = 13.sp)
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search Local",
-                            tint = DjAmberGold
-                        )
-                    },
-                    trailingIcon = {
-                        if (localSearchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp)),
+                placeholder = {
+                    Text(
+                        text = when (selectedSearchTab) {
+                            1 -> "Search offline tracks, artists, BPM, cues..."
+                            2 -> "Search online YouTube songs, requests..."
+                            else -> "Search all local & online songs..."
+                        },
+                        color = activeColors.textTertiary,
+                        fontSize = 13.sp
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = activeColors.primary
+                    )
+                },
+                trailingIcon = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isYouTubeSearching) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .padding(end = 4.dp),
+                                color = activeColors.primary,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                        if (activeQuery.isNotEmpty()) {
+                            IconButton(onClick = {
+                                viewModel.setSearchQuery("")
+                                viewModel.setYouTubeQuery("")
+                            }) {
                                 Icon(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "Clear",
-                                    tint = DjTextSecondary
+                                    tint = activeColors.textSecondary
                                 )
                             }
                         }
-                    },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = DjElevatedCard,
-                        unfocusedContainerColor = DjElevatedCard,
-                        focusedBorderColor = DjAmberGold,
-                        unfocusedBorderColor = DjBorderOutline,
-                        focusedTextColor = DjTextPrimary,
-                        unfocusedTextColor = DjTextPrimary
-                    )
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {
+                    focusManager.clearFocus()
+                    if (activeQuery.isNotBlank()) {
+                        viewModel.searchYouTube(activeQuery, isManualSubmit = true)
+                    }
+                }),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = activeColors.surfaceElevated,
+                    unfocusedContainerColor = activeColors.surfaceElevated,
+                    focusedBorderColor = activeColors.primary,
+                    unfocusedBorderColor = activeColors.border,
+                    focusedTextColor = activeColors.textPrimary,
+                    unfocusedTextColor = activeColors.textPrimary
                 )
+            )
+        }
 
-                // Category Filter Chips
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        val isAllSelected = selectedCategory == null
-                        CategoryFilterChip(
-                            name = "All Events",
-                            isSelected = isAllSelected,
-                            colorHex = "#FFB300",
-                            onClick = { viewModel.setSelectedCategoryFilter(null) }
-                        )
-                    }
+        Spacer(modifier = Modifier.height(10.dp))
 
-                    items(categories) { category ->
-                        val isSelected = selectedCategory?.id == category.id
-                        CategoryFilterChip(
-                            name = category.name,
-                            isSelected = isSelected,
-                            colorHex = category.colorHex,
-                            onClick = {
-                                if (isSelected) {
-                                    viewModel.setSelectedCategoryFilter(null)
-                                } else {
-                                    viewModel.setSelectedCategoryFilter(category)
-                                }
-                            }
-                        )
-                    }
-                }
-
-                // YouTube Bridge Switcher Card
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .border(1.dp, DjCrimsonCue.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                        .clickable {
-                            if (localSearchQuery.isNotBlank()) {
-                                viewModel.searchYouTube(localSearchQuery, isManualSubmit = true)
-                            }
-                            selectedSearchTab = 1
-                        },
-                    colors = CardDefaults.cardColors(containerColor = DjElevatedCard)
-                ) {
+        // 3 Clean Filter Tabs: Unified All, Local Offline, Online Music
+        TabRow(
+            selectedTabIndex = selectedSearchTab,
+            containerColor = activeColors.surface,
+            contentColor = activeColors.textPrimary,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedSearchTab]),
+                    height = 3.dp,
+                    color = activeColors.primary
+                )
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .border(1.dp, activeColors.border, RoundedCornerShape(10.dp))
+        ) {
+            Tab(
+                selected = selectedSearchTab == 0,
+                onClick = { selectedSearchTab = 0 },
+                text = {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.SmartDisplay,
-                                contentDescription = null,
-                                tint = DjCrimsonCue,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = if (localSearchQuery.isNotBlank()) "Can't find local track? Search YouTube for \"$localSearchQuery\"" else "Switch to Official YouTube Search",
-                                color = DjTextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
+                        Icon(
+                            imageVector = Icons.Default.GraphicEq,
+                            contentDescription = null,
+                            tint = if (selectedSearchTab == 0) activeColors.primary else activeColors.textTertiary,
+                            modifier = Modifier.size(15.dp)
+                        )
                         Text(
-                            text = "SEARCH ↗",
-                            color = DjCrimsonCue,
+                            text = "UNIFIED ALL",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedSearchTab == 0) activeColors.primary else activeColors.textTertiary
                         )
                     }
                 }
+            )
 
-                // Results count status
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${localResults.size} offline local tracks found",
-                        color = DjTextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    if (selectedCategory != null) {
+            Tab(
+                selected = selectedSearchTab == 1,
+                onClick = { selectedSearchTab = 1 },
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LibraryMusic,
+                            contentDescription = null,
+                            tint = if (selectedSearchTab == 1) activeColors.primary else activeColors.textTertiary,
+                            modifier = Modifier.size(15.dp)
+                        )
                         Text(
-                            text = "Category: ${selectedCategory?.name}",
-                            color = DjAmberGold,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
+                            text = "LOCAL (${localResults.size})",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedSearchTab == 1) activeColors.primary else activeColors.textTertiary
                         )
                     }
                 }
+            )
 
-                // Local Song Results List
+            Tab(
+                selected = selectedSearchTab == 2,
+                onClick = { selectedSearchTab = 2 },
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SmartDisplay,
+                            contentDescription = null,
+                            tint = if (selectedSearchTab == 2) activeColors.primary else activeColors.textTertiary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = "ONLINE (${onlineMusicResults.size + youTubeResults.size})",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedSearchTab == 2) activeColors.primary else activeColors.textTertiary
+                        )
+                    }
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Content Area based on Tab Selection
+        when (selectedSearchTab) {
+            0 -> {
+                // ==========================================
+                // TAB 0: UNIFIED ALL (BOTH LOCAL & ONLINE)
+                // ==========================================
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding = PaddingValues(bottom = 120.dp)
                 ) {
-                    items(localResults, key = { it.id }) { song ->
-                        SongListItem(
-                            song = song,
-                            isPlaying = isPlaying && currentSong?.id == song.id,
-                            isCurrentSong = currentSong?.id == song.id,
-                            isFavorite = favoriteIds.contains(song.id),
-                            onPlayClick = { viewModel.playSong(song, localResults) },
-                            onFavoriteToggle = { viewModel.toggleFavorite(song.id) },
-                            onAddToQueue = { viewModel.addToQueue(song.id) },
-                            onPlayNext = { viewModel.playNextInQueue(song.id) }
-                        )
+                    // Quick Suggestions & Categories when query is empty
+                    if (activeQuery.isBlank()) {
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "POPULAR EVENT CATEGORIES",
+                                    color = activeColors.textTertiary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(categories) { cat ->
+                                        CategoryFilterChip(
+                                            name = cat.name,
+                                            isSelected = selectedCategory?.id == cat.id,
+                                            colorHex = cat.colorHex,
+                                            onClick = {
+                                                viewModel.setSelectedCategoryFilter(cat)
+                                                selectedSearchTab = 1
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (youTubeRecentQueries.isNotEmpty()) {
+                            item {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "RECENT SEARCHES",
+                                            color = activeColors.textTertiary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.sp
+                                        )
+                                        Text(
+                                            text = "Clear",
+                                            color = activeColors.textTertiary,
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.clickable { viewModel.clearYouTubeQueries() }
+                                        )
+                                    }
+
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        items(youTubeRecentQueries.take(6)) { item ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .background(activeColors.surface)
+                                                    .border(1.dp, activeColors.border, RoundedCornerShape(16.dp))
+                                                    .clickable {
+                                                        focusManager.clearFocus()
+                                                        viewModel.setSearchQuery(item.query)
+                                                        viewModel.setYouTubeQuery(item.query)
+                                                        viewModel.searchYouTube(item.query, isManualSubmit = true)
+                                                    }
+                                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Icon(Icons.Default.History, null, tint = activeColors.textTertiary, modifier = Modifier.size(12.dp))
+                                                Text(item.query, color = activeColors.textSecondary, fontSize = 11.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // --- SECTION 1: LOCAL RESULTS ---
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.LibraryMusic, null, tint = activeColors.tertiary, modifier = Modifier.size(16.dp))
+                                Text(
+                                    text = "LOCAL SONGS",
+                                    color = activeColors.textPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(activeColors.tertiary.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${localResults.size}",
+                                        color = activeColors.tertiary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = "SCREEN-OFF READY",
+                                color = activeColors.tertiary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     if (localResults.isEmpty()) {
                         item {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 40.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            Text(
+                                text = "No local tracks match this search.",
+                                color = activeColors.textTertiary,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    } else {
+                        items(localResults.take(6), key = { "local_${it.id}" }) { song ->
+                            SongListItem(
+                                song = song,
+                                isPlaying = isPlaying && currentSong?.id == song.id,
+                                isCurrentSong = currentSong?.id == song.id,
+                                isFavorite = favoriteIds.contains(song.id),
+                                onPlayClick = { viewModel.playSong(song, localResults) },
+                                onFavoriteToggle = { viewModel.toggleFavorite(song.id) },
+                                onAddToQueue = { viewModel.addToQueue(song.id) },
+                                onPlayNext = { viewModel.playNextInQueue(song.id) }
+                            )
+                        }
+                    }
+
+                    // --- SECTION 2: ONLINE STREAMING (BACKGROUND & SCREEN-OFF READY) ---
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.MusicOff,
-                                    contentDescription = null,
-                                    tint = DjTextTertiary,
-                                    modifier = Modifier.size(48.dp)
-                                )
+                                Icon(Icons.Default.CloudQueue, null, tint = activeColors.secondary, modifier = Modifier.size(16.dp))
                                 Text(
-                                    text = "No local tracks match your query",
-                                    color = DjTextSecondary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                                    text = "ONLINE STREAMING",
+                                    color = activeColors.textPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
                                 )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(activeColors.secondary.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${onlineMusicResults.size}",
+                                        color = activeColors.secondary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = "SCREEN-OFF & BACKGROUND READY",
+                                color = activeColors.secondary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    if (onlineMusicResults.isEmpty() && !isOnlineMusicSearching) {
+                        item {
+                            Text(
+                                text = onlineMusicError ?: "Type to search live online music tracks with background playback.",
+                                color = activeColors.textTertiary,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    } else {
+                        items(onlineMusicResults.take(6), key = { "online_stream_${it.id}" }) { onlineSong ->
+                            SongListItem(
+                                song = onlineSong,
+                                isPlaying = isPlaying && currentSong?.id == onlineSong.id,
+                                isCurrentSong = currentSong?.id == onlineSong.id,
+                                isFavorite = favoriteIds.contains(onlineSong.id),
+                                onPlayClick = {
+                                    viewModel.playSong(onlineSong, onlineMusicResults)
+                                },
+                                onFavoriteToggle = {
+                                    viewModel.toggleFavorite(onlineSong.id)
+                                },
+                                onAddToQueue = {
+                                    viewModel.addToQueue(onlineSong.id)
+                                },
+                                onPlayNext = {
+                                    viewModel.playNextInQueue(onlineSong.id)
+                                }
+                            )
+                        }
+                    }
+
+                    // --- SECTION 3: YOUTUBE OFFICIAL VIDEOS ---
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.SmartDisplay, null, tint = activeColors.primary, modifier = Modifier.size(16.dp))
                                 Text(
-                                    text = "Try clearing filters or search YouTube above.",
-                                    color = DjTextTertiary,
-                                    fontSize = 12.sp
+                                    text = "YOUTUBE VIDEO CLIPS",
+                                    color = activeColors.textPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
                                 )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(activeColors.primary.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${youTubeResults.size}",
+                                        color = activeColors.primary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = "FOREGROUND VIDEO",
+                                color = activeColors.primary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    if (youTubeResults.isEmpty() && !isYouTubeSearching) {
+                        item {
+                            Text(
+                                text = "No YouTube videos matching query.",
+                                color = activeColors.textTertiary,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    } else {
+                        items(youTubeResults.take(6), key = { "online_yt_${it.videoId}" }) { video ->
+                            YouTubeVideoCard(
+                                video = video,
+                                isActive = false,
+                                onPlay = {
+                                    viewModel.playYouTubeVideo(video)
+                                    onSearchYouTube(video.title)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            1 -> {
+                // ==========================================
+                // TAB 1: LOCAL ONLY WITH CATEGORY CHIPS
+                // ==========================================
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item {
+                            val isAllSelected = selectedCategory == null
+                            CategoryFilterChip(
+                                name = "All Events",
+                                isSelected = isAllSelected,
+                                colorHex = "#FFB300",
+                                onClick = { viewModel.setSelectedCategoryFilter(null) }
+                            )
+                        }
+
+                        items(categories) { category ->
+                            val isSelected = selectedCategory?.id == category.id
+                            CategoryFilterChip(
+                                name = category.name,
+                                isSelected = isSelected,
+                                colorHex = category.colorHex,
+                                onClick = {
+                                    if (isSelected) {
+                                        viewModel.setSelectedCategoryFilter(null)
+                                    } else {
+                                        viewModel.setSelectedCategoryFilter(category)
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${localResults.size} offline local tracks found",
+                            color = activeColors.textSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        if (selectedCategory != null) {
+                            Text(
+                                text = "Category: ${selectedCategory?.name}",
+                                color = activeColors.primary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 120.dp)
+                    ) {
+                        items(localResults, key = { it.id }) { song ->
+                            SongListItem(
+                                song = song,
+                                isPlaying = isPlaying && currentSong?.id == song.id,
+                                isCurrentSong = currentSong?.id == song.id,
+                                isFavorite = favoriteIds.contains(song.id),
+                                onPlayClick = { viewModel.playSong(song, localResults) },
+                                onFavoriteToggle = { viewModel.toggleFavorite(song.id) },
+                                onAddToQueue = { viewModel.addToQueue(song.id) },
+                                onPlayNext = { viewModel.playNextInQueue(song.id) }
+                            )
+                        }
+
+                        if (localResults.isEmpty()) {
+                            item {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 40.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(Icons.Default.MusicOff, null, tint = activeColors.textTertiary, modifier = Modifier.size(48.dp))
+                                    Text(
+                                        text = "No local tracks match your query",
+                                        color = activeColors.textSecondary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        } else {
-            // ==========================================
-            // TAB 1: OFFICIAL YOUTUBE SEARCH
-            // ==========================================
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // YouTube Search Bar
-                OutlinedTextField(
-                    value = youTubeQuery,
-                    onValueChange = { viewModel.setYouTubeQuery(it) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp)),
-                    placeholder = {
-                        Text("Search YouTube for songs, artists, requests...", color = DjTextTertiary, fontSize = 13.sp)
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search YouTube",
-                            tint = DjCrimsonCue
-                        )
-                    },
-                    trailingIcon = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (isYouTubeSearching) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier
-                                        .size(16.dp)
-                                        .padding(end = 4.dp),
-                                    color = DjCrimsonCue,
-                                    strokeWidth = 2.dp
-                                )
-                            }
-                            if (youTubeQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.setYouTubeQuery("") }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Clear,
-                                        contentDescription = "Clear",
-                                        tint = DjTextSecondary
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        focusManager.clearFocus()
-                        viewModel.searchYouTube(youTubeQuery, isManualSubmit = true)
-                    }),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = DjElevatedCard,
-                        unfocusedContainerColor = DjElevatedCard,
-                        focusedBorderColor = DjCrimsonCue,
-                        unfocusedBorderColor = DjBorderOutline,
-                        focusedTextColor = DjTextPrimary,
-                        unfocusedTextColor = DjTextPrimary
-                    )
-                )
 
-                // Instant Suggestions
-                if (youTubeQuery.isNotBlank() && youTubeSuggestions.isNotEmpty()) {
+            2 -> {
+                // ==========================================
+                // TAB 2: ONLINE MUSIC (BACKGROUND STREAMING & YOUTUBE)
+                // ==========================================
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Quick Event Presets
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(youTubeSuggestions) { suggestion ->
+                        items(com.example.data.online.OnlineMusicClient.curatedEventPresets) { preset ->
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(16.dp))
-                                    .background(DjDeepSurface)
-                                    .border(1.dp, DjBorderOutline, RoundedCornerShape(16.dp))
+                                    .background(activeColors.surface)
+                                    .border(1.dp, activeColors.border, RoundedCornerShape(16.dp))
                                     .clickable {
                                         focusManager.clearFocus()
-                                        viewModel.searchYouTube(suggestion, isManualSubmit = true)
+                                        viewModel.setSearchQuery(preset)
+                                        viewModel.setYouTubeQuery(preset)
+                                        viewModel.searchOnlineMusic(preset)
                                     }
                                     .padding(horizontal = 10.dp, vertical = 5.dp)
                             ) {
@@ -478,107 +723,108 @@ fun SearchScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(Icons.Default.TrendingUp, null, tint = DjAmberGold, modifier = Modifier.size(13.dp))
-                                    Text(suggestion, color = DjTextSecondary, fontSize = 11.sp)
+                                    Icon(Icons.Default.CloudQueue, null, tint = activeColors.secondary, modifier = Modifier.size(13.dp))
+                                    Text(preset, color = activeColors.textSecondary, fontSize = 11.sp)
                                 }
                             }
                         }
                     }
-                }
 
-                // Recent YouTube Searches
-                if (youTubeRecentQueries.isNotEmpty() && youTubeQuery.isBlank()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(bottom = 120.dp)
                     ) {
-                        Text("RECENT SEARCHES", color = DjTextTertiary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text("Clear", color = DjTextTertiary, fontSize = 10.sp, modifier = Modifier.clickable { viewModel.clearYouTubeQueries() })
-                    }
-
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(youTubeRecentQueries.take(8)) { item ->
+                        // Section 1: Online Background Audio
+                        item {
                             Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(DjDeepSurface)
-                                    .border(1.dp, DjBorderOutline, RoundedCornerShape(16.dp))
-                                    .clickable {
-                                        focusManager.clearFocus()
-                                        viewModel.searchYouTube(item.query, isManualSubmit = true)
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(Icons.Default.History, null, tint = DjTextTertiary, modifier = Modifier.size(12.dp))
-                                Text(item.query, color = DjTextSecondary, fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-
-                // YouTube Results count status
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Official YouTube Results (${youTubeResults.size})",
-                        color = DjTextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Text(
-                        text = "TAP TO PLAY IN DECK",
-                        color = DjCrimsonCue,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-
-                // YouTube Results List
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 120.dp)
-                ) {
-                    items(youTubeResults, key = { it.videoId }) { video ->
-                        YouTubeVideoCard(
-                            video = video,
-                            isActive = false,
-                            onPlay = {
-                                viewModel.playYouTubeVideo(video)
-                                onSearchYouTube(video.title)
-                            }
-                        )
-                    }
-
-                    if (youTubeResults.isEmpty() && !isYouTubeSearching) {
-                        item {
-                            Column(
-                                modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 40.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    .padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.SmartDisplay,
-                                    contentDescription = null,
-                                    tint = DjTextTertiary,
-                                    modifier = Modifier.size(48.dp)
-                                )
                                 Text(
-                                    text = "Search YouTube to find live tracks",
-                                    color = DjTextSecondary,
-                                    fontSize = 14.sp,
+                                    text = "Online Audio Streams (${onlineMusicResults.size})",
+                                    color = activeColors.textPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text = "BACKGROUND & SCREEN-OFF READY",
+                                    color = activeColors.secondary,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                        }
+
+                        if (onlineMusicResults.isEmpty() && !isOnlineMusicSearching) {
+                            item {
+                                Text(
+                                    text = onlineMusicError ?: "Type above to search millions of online tracks with background playback.",
+                                    color = activeColors.textTertiary,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                        } else {
+                            items(onlineMusicResults, key = { "tab2_online_${it.id}" }) { onlineSong ->
+                                SongListItem(
+                                    song = onlineSong,
+                                    isPlaying = isPlaying && currentSong?.id == onlineSong.id,
+                                    isCurrentSong = currentSong?.id == onlineSong.id,
+                                    isFavorite = favoriteIds.contains(onlineSong.id),
+                                    onPlayClick = {
+                                        viewModel.playSong(onlineSong, onlineMusicResults)
+                                    },
+                                    onFavoriteToggle = {
+                                        viewModel.toggleFavorite(onlineSong.id)
+                                    },
+                                    onAddToQueue = {
+                                        viewModel.addToQueue(onlineSong.id)
+                                    },
+                                    onPlayNext = {
+                                        viewModel.playNextInQueue(onlineSong.id)
+                                    }
+                                )
+                            }
+                        }
+
+                        // Section 2: YouTube Video Clips
+                        item {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "YouTube Video Clips (${youTubeResults.size})",
+                                    color = activeColors.textSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text = "FOREGROUND VIDEO PLAYER",
+                                    color = activeColors.primary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        items(youTubeResults, key = { "tab2_yt_${it.videoId}" }) { video ->
+                            YouTubeVideoCard(
+                                video = video,
+                                isActive = false,
+                                onPlay = {
+                                    viewModel.playYouTubeVideo(video)
+                                    onSearchYouTube(video.title)
+                                }
+                            )
                         }
                     }
                 }
@@ -594,19 +840,20 @@ fun CategoryFilterChip(
     colorHex: String,
     onClick: () -> Unit
 ) {
+    val activeColors = LocalDjColors.current
     val chipColor = try {
         Color(android.graphics.Color.parseColor(colorHex))
     } catch (_: Exception) {
-        DjAmberGold
+        activeColors.primary
     }
 
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (isSelected) chipColor else DjElevatedCard)
+            .background(if (isSelected) chipColor else activeColors.surfaceElevated)
             .border(
                 width = 1.dp,
-                color = if (isSelected) chipColor else DjBorderOutline,
+                color = if (isSelected) chipColor else activeColors.border,
                 shape = RoundedCornerShape(20.dp)
             )
             .clickable { onClick() }
@@ -615,7 +862,7 @@ fun CategoryFilterChip(
     ) {
         Text(
             text = name,
-            color = if (isSelected) Color.Black else DjTextPrimary,
+            color = if (isSelected) Color.Black else activeColors.textPrimary,
             fontSize = 12.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
         )

@@ -29,12 +29,17 @@ data class QueueItemWithSong(
 interface QueueDao {
     @Query("""
         SELECT q.id, q.songId, q.orderIndex, q.addedAt,
-               s.title AS songTitle, s.artist AS songArtist, s.album AS songAlbum,
-               s.durationMs AS songDurationMs, s.filePath AS songFilePath,
-               s.bpm AS songBpm, s.musicalKey AS songMusicalKey,
-               s.cueNotes AS songCueNotes, s.coverColorHex AS songCoverColorHex
+               COALESCE(s.title, 'Queued Track') AS songTitle,
+               COALESCE(s.artist, 'Sound Operator') AS songArtist,
+               COALESCE(s.album, 'Live Queue') AS songAlbum,
+               COALESCE(s.durationMs, 30000) AS songDurationMs,
+               COALESCE(s.filePath, '') AS songFilePath,
+               COALESCE(s.bpm, 120) AS songBpm,
+               COALESCE(s.musicalKey, '8A / Am') AS songMusicalKey,
+               COALESCE(s.cueNotes, '') AS songCueNotes,
+               COALESCE(s.coverColorHex, '#00E5FF') AS songCoverColorHex
         FROM queue_items q
-        INNER JOIN songs s ON q.songId = s.id
+        LEFT JOIN songs s ON q.songId = s.id
         ORDER BY q.orderIndex ASC
     """)
     fun getQueueWithSongs(): Flow<List<QueueItemWithSong>>

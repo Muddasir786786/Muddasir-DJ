@@ -7,14 +7,6 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "queue_items",
-    foreignKeys = [
-        ForeignKey(
-            entity = SongEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["songId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [Index(value = ["songId"])]
 )
 data class QueueItemEntity(

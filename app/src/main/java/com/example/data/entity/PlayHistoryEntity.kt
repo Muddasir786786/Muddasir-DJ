@@ -7,14 +7,6 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "play_history",
-    foreignKeys = [
-        ForeignKey(
-            entity = SongEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["songId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [Index(value = ["songId"])]
 )
 data class PlayHistoryEntity(

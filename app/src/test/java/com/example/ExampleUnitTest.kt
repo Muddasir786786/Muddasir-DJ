@@ -1,5 +1,7 @@
 package com.example
 
+import com.example.data.online.OnlineMusicTrack
+import com.example.data.online.toSongEntity
 import com.example.data.youtube.YouTubeApiClient
 import com.example.data.youtube.YouTubeSuggestionsProvider
 import org.junit.Assert.*
@@ -29,5 +31,22 @@ class ExampleUnitTest {
   @Test
   fun built_in_suggestions_contains_official_sample() {
     assertTrue(YouTubeSuggestionsProvider.BUILT_IN_SUGGESTIONS.contains("M7lc1UVf-VE"))
+  }
+
+  @Test
+  fun online_track_converts_to_playable_song_entity() {
+    val track = OnlineMusicTrack(
+      trackId = 12345L,
+      trackName = "Bhangra Beats",
+      artistName = "DJ Star",
+      collectionName = "Wedding Collection",
+      previewUrl = "https://audio-ssl.itunes.apple.com/preview.m4a",
+      trackTimeMillis = 30000L
+    )
+    val song = track.toSongEntity()
+    assertFalse("Online song must have isLocal set to false", song.isLocal)
+    assertEquals("https://audio-ssl.itunes.apple.com/preview.m4a", song.filePath)
+    assertEquals("Bhangra Beats", song.title)
+    assertTrue("Online song must have negative ID to avoid Room local collision", song.id < 0)
   }
 }

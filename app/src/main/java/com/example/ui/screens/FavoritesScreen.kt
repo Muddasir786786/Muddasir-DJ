@@ -53,11 +53,12 @@ fun FavoritesScreen(
     val currentSong by viewModel.currentSong.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val favoriteIds by viewModel.favoriteSongIds.collectAsState()
+    val activeColors = com.example.ui.theme.LocalDjColors.current
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DjObsidianBlack)
+            .background(activeColors.background)
             .padding(top = 16.dp)
     ) {
         // Header
@@ -73,13 +74,13 @@ fun FavoritesScreen(
                 Column {
                     Text(
                         text = "Starred Event Tracks",
-                        color = DjTextPrimary,
+                        color = activeColors.textPrimary,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "${favoriteSongs.size} favorite go-to tracks saved",
-                        color = DjTextSecondary,
+                        color = activeColors.textSecondary,
                         fontSize = 12.sp
                     )
                 }
@@ -87,7 +88,7 @@ fun FavoritesScreen(
                 Icon(
                     imageVector = Icons.Default.Favorite,
                     contentDescription = null,
-                    tint = DjCrimsonCue,
+                    tint = activeColors.error,
                     modifier = Modifier.size(28.dp)
                 )
             }

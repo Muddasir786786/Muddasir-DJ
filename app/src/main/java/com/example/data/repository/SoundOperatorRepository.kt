@@ -41,6 +41,17 @@ class SoundOperatorRepository(private val database: AppDatabase) {
         return songId
     }
 
+    suspend fun ensureSongExists(song: SongEntity) {
+        try {
+            val existing = database.songDao().getSongById(song.id)
+            if (existing == null) {
+                database.songDao().insertSong(song)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SoundOperatorRepo", "Error ensuring song exists ${song.id}", e)
+        }
+    }
+
     suspend fun updateSong(song: SongEntity) = database.songDao().updateSong(song)
 
     suspend fun deleteSong(song: SongEntity) = database.songDao().deleteSong(song)
@@ -64,8 +75,15 @@ class SoundOperatorRepository(private val database: AppDatabase) {
 
     suspend fun deletePlaylist(playlist: PlaylistEntity) = database.playlistDao().deletePlaylist(playlist)
 
-    suspend fun addSongToPlaylist(playlistId: Long, songId: Long, orderIndex: Int = 0) {
-        database.playlistDao().addSongToPlaylist(PlaylistSongEntity(playlistId, songId, orderIndex))
+    suspend fun addSongToPlaylist(playlistId: Long, songId: Long, orderIndex: Int = 0, songFallback: SongEntity? = null) {
+        try {
+            if (songFallback != null) {
+                ensureSongExists(songFallback)
+            }
+            database.playlistDao().addSongToPlaylist(PlaylistSongEntity(playlistId, songId, orderIndex))
+        } catch (e: Exception) {
+            android.util.Log.e("SoundOperatorRepo", "Failed to add song to playlist", e)
+        }
     }
 
     suspend fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
@@ -78,12 +96,19 @@ class SoundOperatorRepository(private val database: AppDatabase) {
 
     fun isFavorite(songId: Long): Flow<Boolean> = database.favoriteDao().isFavorite(songId)
 
-    suspend fun toggleFavorite(songId: Long) {
-        val isFav = database.favoriteDao().isFavoriteDirect(songId)
-        if (isFav) {
-            database.favoriteDao().deleteFavorite(songId)
-        } else {
-            database.favoriteDao().insertFavorite(FavoriteEntity(songId))
+    suspend fun toggleFavorite(songId: Long, songFallback: SongEntity? = null) {
+        try {
+            if (songFallback != null) {
+                ensureSongExists(songFallback)
+            }
+            val isFav = database.favoriteDao().isFavoriteDirect(songId)
+            if (isFav) {
+                database.favoriteDao().deleteFavorite(songId)
+            } else {
+                database.favoriteDao().insertFavorite(FavoriteEntity(songId))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SoundOperatorRepo", "Failed to toggle favorite for $songId", e)
         }
     }
 
@@ -92,13 +117,17 @@ class SoundOperatorRepository(private val database: AppDatabase) {
     val recentlyPlayedSongs: Flow<List<SongEntity>> = database.playHistoryDao().getRecentlyPlayedSongs()
 
     suspend fun recordPlayHistory(songId: Long, durationPlayedMs: Long = 0, eventName: String = "Live Stage") {
-        database.playHistoryDao().insertHistory(
-            PlayHistoryEntity(
-                songId = songId,
-                durationPlayedMs = durationPlayedMs,
-                eventName = eventName
+        try {
+            database.playHistoryDao().insertHistory(
+                PlayHistoryEntity(
+                    songId = songId,
+                    durationPlayedMs = durationPlayedMs,
+                    eventName = eventName
+                )
             )
-        )
+        } catch (e: Exception) {
+            android.util.Log.e("SoundOperatorRepo", "Failed to record play history for $songId", e)
+        }
     }
 
     suspend fun clearHistory() = database.playHistoryDao().clearHistory()
@@ -106,19 +135,32 @@ class SoundOperatorRepository(private val database: AppDatabase) {
     // Queue
     val queueWithSongs: Flow<List<QueueItemWithSong>> = database.queueDao().getQueueWithSongs()
 
-    suspend fun addToQueue(songId: Long) {
-        val maxIndex = database.queueDao().getMaxOrderIndex() ?: -1
-        database.queueDao().insertQueueItem(
-            QueueItemEntity(songId = songId, orderIndex = maxIndex + 1)
-        )
+    suspend fun addToQueue(songId: Long, songFallback: SongEntity? = null) {
+        try {
+            if (songFallback != null) {
+                ensureSongExists(songFallback)
+            }
+            val maxIndex = database.queueDao().getMaxOrderIndex() ?: -1
+            database.queueDao().insertQueueItem(
+                QueueItemEntity(songId = songId, orderIndex = maxIndex + 1)
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("SoundOperatorRepo", "Failed to add to queue for $songId", e)
+        }
     }
 
-    suspend fun playNextInQueue(songId: Long) {
-        val currentQueue = database.queueDao().getMaxOrderIndex() ?: 0
-        // Insert with top priority
-        database.queueDao().insertQueueItem(
-            QueueItemEntity(songId = songId, orderIndex = 0)
-        )
+    suspend fun playNextInQueue(songId: Long, songFallback: SongEntity? = null) {
+        try {
+            if (songFallback != null) {
+                ensureSongExists(songFallback)
+            }
+            // Insert with top priority
+            database.queueDao().insertQueueItem(
+                QueueItemEntity(songId = songId, orderIndex = 0)
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("SoundOperatorRepo", "Failed to play next in queue for $songId", e)
+        }
     }
 
     suspend fun removeFromQueue(queueId: Long) = database.queueDao().deleteQueueItem(queueId)

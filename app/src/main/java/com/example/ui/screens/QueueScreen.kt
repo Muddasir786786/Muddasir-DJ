@@ -89,11 +89,12 @@ fun QueueScreen(
     val visualizerBands by viewModel.visualizerBands.collectAsState()
     val allSongs by viewModel.allSongs.collectAsState()
     val historyItems by viewModel.repository.recentHistory.collectAsState(initial = emptyList())
+    val activeColors = com.example.ui.theme.LocalDjColors.current
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DjObsidianBlack)
+            .background(activeColors.background)
             .padding(top = 16.dp)
     ) {
         // Queue Header & Actions
@@ -107,13 +108,13 @@ fun QueueScreen(
             Column {
                 Text(
                     text = "Live Deck Queue",
-                    color = DjTextPrimary,
+                    color = activeColors.textPrimary,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "${queueItems.size} tracks queued up next",
-                    color = DjTextSecondary,
+                    color = activeColors.textSecondary,
                     fontSize = 12.sp
                 )
             }

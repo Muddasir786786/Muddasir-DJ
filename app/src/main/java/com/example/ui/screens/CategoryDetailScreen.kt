@@ -110,10 +110,12 @@ fun CategoryDetailScreen(
         }
     }
 
+    val activeColors = com.example.ui.theme.LocalDjColors.current
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DjObsidianBlack)
+            .background(activeColors.background)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         // Header Row with Back Button, Category Title, Count
@@ -131,7 +133,7 @@ fun CategoryDetailScreen(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(CircleShape)
-                        .background(DjDeepSurface)
+                        .background(activeColors.surface)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,

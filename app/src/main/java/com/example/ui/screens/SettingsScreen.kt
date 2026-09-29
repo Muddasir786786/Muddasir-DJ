@@ -30,7 +30,10 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Palette
+import com.example.ui.theme.DjThemes
+import com.example.ui.theme.LocalDjColors
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -77,11 +80,13 @@ fun SettingsScreen(
     val gaplessPlayback by viewModel.gaplessPlayback.collectAsState()
     val djHighContrast by viewModel.djHighContrast.collectAsState()
     val allSongs by viewModel.allSongs.collectAsState()
+    val currentThemeId by viewModel.currentThemeId.collectAsState()
+    val activeColors = LocalDjColors.current
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(DjObsidianBlack),
+            .background(activeColors.background),
         contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -89,15 +94,143 @@ fun SettingsScreen(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = "Sound Operator Settings",
-                    color = DjTextPrimary,
+                    color = activeColors.textPrimary,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "Professional Stage Deck & Audio Routing Configuration",
-                    color = DjTextSecondary,
+                    color = activeColors.textSecondary,
                     fontSize = 12.sp
                 )
+            }
+        }
+
+        // STAGE THEME & VISUAL LIGHTING SYSTEM
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, activeColors.border, RoundedCornerShape(16.dp)),
+                colors = CardDefaults.cardColors(containerColor = activeColors.surfaceElevated)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Palette, null, tint = activeColors.primary)
+                        Text(
+                            text = "STAGE THEMES & VISUAL LIGHTING",
+                            color = activeColors.textPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    Text(
+                        text = "Customize the DJ console appearance, LED accents, and stage contrast for banquet halls and festival booths.",
+                        color = activeColors.textSecondary,
+                        fontSize = 12.sp
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DjThemes.allThemes.forEach { theme ->
+                            val isSelected = currentThemeId == theme.id
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) theme.surfaceHighlight else theme.surface)
+                                    .border(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) theme.primary else activeColors.border,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { viewModel.setTheme(theme.id) }
+                                    .padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        // Color Swatch Trio
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .clip(CircleShape)
+                                                    .background(theme.primary)
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .clip(CircleShape)
+                                                    .background(theme.secondary)
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(12.dp)
+                                                    .clip(CircleShape)
+                                                    .background(theme.background)
+                                                    .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+                                            )
+                                        }
+
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                text = theme.name,
+                                                color = if (isSelected) theme.primary else activeColors.textPrimary,
+                                                fontSize = 14.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                text = theme.subtitle,
+                                                color = activeColors.textSecondary,
+                                                fontSize = 11.sp,
+                                                lineHeight = 14.sp
+                                            )
+                                        }
+                                    }
+
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(theme.primary),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Active",
+                                                tint = Color.Black,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

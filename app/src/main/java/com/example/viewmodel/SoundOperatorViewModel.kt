@@ -17,6 +17,8 @@ import com.example.data.repository.SoundOperatorRepository
 import com.example.data.youtube.YouTubeApiClient
 import com.example.data.youtube.YouTubeSuggestionsProvider
 import com.example.data.youtube.YouTubeVideoItem
+import com.example.data.online.OnlineMusicClient
+import com.example.data.online.toSongEntity
 import com.example.playback.AudioOutputHelper
 import com.example.playback.AudioOutputStatus
 import com.example.playback.SoundPlayerManager
@@ -120,7 +122,7 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
     val isMasterMuted: StateFlow<Boolean> = playerManager.isMasterMuted
     val visualizerBands: StateFlow<List<Float>> = playerManager.visualizerBands
 
-    // Settings
+    // Settings & Stage Themes
     private val _crossfadeSec = MutableStateFlow(2)
     val crossfadeSec: StateFlow<Int> = _crossfadeSec.asStateFlow()
 
@@ -130,214 +132,22 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
     private val _djHighContrast = MutableStateFlow(true)
     val djHighContrast: StateFlow<Boolean> = _djHighContrast.asStateFlow()
 
-    init {
-        audioOutputHelper.startListening()
+    private val _currentThemeId = MutableStateFlow(com.example.ui.theme.DjThemes.DEFAULT_THEME_ID)
+    val currentThemeId: StateFlow<String> = _currentThemeId.asStateFlow()
 
-        viewModelScope.launch {
-            // Seed DB if first run
-            DatabaseInitializer.populateInitialData(application, database)
+    // Legitimate Online Music State (Full Background & Screen-Off Playback via ExoPlayer)
+    private val _onlineMusicResults = MutableStateFlow<List<SongEntity>>(emptyList())
+    val onlineMusicResults: StateFlow<List<SongEntity>> = _onlineMusicResults.asStateFlow()
 
-            // Load last settings
-            repository.getSetting("crossfade_sec")?.toIntOrNull()?.let { _crossfadeSec.value = it }
-            repository.getSetting("gapless_playback")?.let { _gaplessPlayback.value = it.toBoolean() }
-            repository.getSetting("dj_high_contrast")?.let { _djHighContrast.value = it.toBoolean() }
+    private val _isOnlineMusicSearching = MutableStateFlow(false)
+    val isOnlineMusicSearching: StateFlow<Boolean> = _isOnlineMusicSearching.asStateFlow()
 
-            // Resume playback state if available
-            val lastSongId = repository.getSetting("last_played_song_id")?.toLongOrNull()
-            if (lastSongId != null && playerManager.currentSong.value == null) {
-                repository.getSongById(lastSongId)?.let { lastSong ->
-                    // Set current song ready without auto-starting sound loudly
-                }
-            }
-        }
+    private val _onlineMusicError = MutableStateFlow<String?>(null)
+    val onlineMusicError: StateFlow<String?> = _onlineMusicError.asStateFlow()
 
-        // Record play history when song changes
-        playerManager.onSongChanged = { song ->
-            viewModelScope.launch {
-                repository.recordPlayHistory(song.id, durationPlayedMs = song.durationMs, eventName = "Live Event")
-                repository.setSetting("last_played_song_id", song.id.toString())
-            }
-        }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        audioOutputHelper.stopListening()
-    }
-
-    fun playSong(song: SongEntity, contextList: List<SongEntity> = emptyList()) {
-        _activeYouTubeVideo.value = null
-        _isYouTubeExpanded.value = false
-        playerManager.playSong(song, contextList)
-    }
-
-    fun togglePlayPause() {
-        playerManager.togglePlayPause()
-    }
-
-    fun playNext() {
-        playerManager.playNext()
-    }
-
-    fun playPrevious() {
-        playerManager.playPrevious()
-    }
-
-    fun seekTo(positionMs: Long) {
-        playerManager.seekTo(positionMs)
-    }
-
-    fun seekRelative(offsetMs: Long) {
-        playerManager.seekRelative(offsetMs)
-    }
-
-    fun jumpToCue(percentage: Float) {
-        playerManager.jumpToCue(percentage)
-    }
-
-    fun setPlaybackSpeed(speed: Float) {
-        playerManager.setPlaybackSpeed(speed)
-    }
-
-    fun toggleRepeatMode() {
-        playerManager.toggleRepeatMode()
-    }
-
-    fun toggleShuffle() {
-        playerManager.toggleShuffle()
-    }
-
-    fun toggleMasterMute() {
-        playerManager.toggleMasterMute()
-    }
-
-    fun toggleFavorite(songId: Long) {
-        viewModelScope.launch {
-            repository.toggleFavorite(songId)
-        }
-    }
-
-    fun addToQueue(songId: Long) {
-        viewModelScope.launch {
-            repository.addToQueue(songId)
-        }
-    }
-
-    fun playNextInQueue(songId: Long) {
-        viewModelScope.launch {
-            repository.playNextInQueue(songId)
-        }
-    }
-
-    fun removeFromQueue(queueId: Long) {
-        viewModelScope.launch {
-            repository.removeFromQueue(queueId)
-        }
-    }
-
-    fun clearQueue() {
-        viewModelScope.launch {
-            repository.clearQueue()
-        }
-    }
-
-    fun createPlaylist(name: String, description: String, colorHex: String = "#00E5FF") {
-        viewModelScope.launch {
-            repository.createPlaylist(name, description, colorHex)
-        }
-    }
-
-    fun deletePlaylist(playlist: PlaylistEntity) {
-        viewModelScope.launch {
-            repository.deletePlaylist(playlist)
-        }
-    }
-
-    fun addSongToPlaylist(playlistId: Long, songId: Long) {
-        viewModelScope.launch {
-            repository.addSongToPlaylist(playlistId, songId)
-        }
-    }
-
-    fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
-        viewModelScope.launch {
-            repository.removeSongFromPlaylist(playlistId, songId)
-        }
-    }
-
-    fun setSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
-    fun setSelectedCategoryFilter(category: CategoryEntity?) {
-        _selectedCategoryFilter.value = category
-    }
-
-    fun togglePackDownload(pack: MusicPackEntity) {
-        viewModelScope.launch {
-            repository.togglePackDownload(pack)
-        }
-    }
-
-    fun updateCrossfadeSec(seconds: Int) {
-        _crossfadeSec.value = seconds
-        viewModelScope.launch {
-            repository.setSetting("crossfade_sec", seconds.toString())
-        }
-    }
-
-    fun updateGapless(enabled: Boolean) {
-        _gaplessPlayback.value = enabled
-        viewModelScope.launch {
-            repository.setSetting("gapless_playback", enabled.toString())
-        }
-    }
-
-    fun updateDjHighContrast(enabled: Boolean) {
-        _djHighContrast.value = enabled
-        viewModelScope.launch {
-            repository.setSetting("dj_high_contrast", enabled.toString())
-        }
-    }
-
-    fun clearHistory() {
-        viewModelScope.launch {
-            repository.clearHistory()
-        }
-    }
-
-    fun refreshAudioOutput() {
-        audioOutputHelper.refresh()
-    }
-
-    fun resetDemoData() {
-        viewModelScope.launch {
-            repository.clearQueue()
-            repository.clearHistory()
-            DatabaseInitializer.populateInitialData(getApplication(), database)
-        }
-    }
-
-    fun importLocalAudio(title: String, artist: String, filePath: String, durationMs: Long, bpm: Int) {
-        viewModelScope.launch {
-            val song = SongEntity(
-                title = title,
-                artist = artist,
-                album = "Imported Audio",
-                durationMs = durationMs,
-                filePath = filePath,
-                bpm = bpm,
-                musicalKey = "Auto / 8A",
-                cueNotes = "Imported from device storage",
-                coverColorHex = "#00E5FF",
-                isLocal = true
-            )
-            repository.insertSong(song)
-        }
-    }
+    private var onlineSearchJob: Job? = null
 
     // --- Official YouTube Search, Suggestions, Pagination & Playback State ---
-
     private val _youTubeQuery = MutableStateFlow("")
     val youTubeQuery: StateFlow<String> = _youTubeQuery.asStateFlow()
 
@@ -390,6 +200,8 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
     private var lastSearchedQuery: String? = null
 
     init {
+        audioOutputHelper.startListening()
+
         // Initialize results with curated event videos so operator can test embedded playback immediately
         _youTubeSearchResults.value = YouTubeApiClient.sampleEventVideos
 
@@ -401,6 +213,278 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
         }
         YouTubePlayerBridge.onStopRequested = {
             viewModelScope.launch { stopYouTubePlayback() }
+        }
+
+        viewModelScope.launch {
+            // Seed DB if first run
+            DatabaseInitializer.populateInitialData(application, database)
+
+            // Load last settings
+            repository.getSetting("crossfade_sec")?.toIntOrNull()?.let { _crossfadeSec.value = it }
+            repository.getSetting("gapless_playback")?.let { _gaplessPlayback.value = it.toBoolean() }
+            repository.getSetting("dj_high_contrast")?.let { _djHighContrast.value = it.toBoolean() }
+            repository.getSetting("app_theme_id")?.let { savedTheme ->
+                if (com.example.ui.theme.DjThemes.allThemes.any { it.id == savedTheme }) {
+                    _currentThemeId.value = savedTheme
+                }
+            }
+
+            // Resume playback state if available
+            val lastSongId = repository.getSetting("last_played_song_id")?.toLongOrNull()
+            if (lastSongId != null && playerManager.currentSong.value == null) {
+                repository.getSongById(lastSongId)?.let { lastSong ->
+                    // Set current song ready without auto-starting sound loudly
+                }
+            }
+        }
+
+        // Record play history when song changes
+        playerManager.onSongChanged = { song ->
+            viewModelScope.launch {
+                try {
+                    repository.ensureSongExists(song)
+                    repository.recordPlayHistory(song.id, durationPlayedMs = song.durationMs, eventName = "Live Event")
+                    repository.setSetting("last_played_song_id", song.id.toString())
+                } catch (e: Exception) {
+                    android.util.Log.e("SoundOperatorVM", "Error in onSongChanged for song ${song.id}", e)
+                }
+            }
+        }
+        // Pre-load popular wedding & DJ tracks for online background streaming
+        searchOnlineMusic("wedding bhangra")
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        audioOutputHelper.stopListening()
+    }
+
+    fun playSong(song: SongEntity, contextList: List<SongEntity> = emptyList()) {
+        _activeYouTubeVideo.value = null
+        _isYouTubeExpanded.value = false
+        viewModelScope.launch {
+            try {
+                repository.ensureSongExists(song)
+                for (contextSong in contextList) {
+                    repository.ensureSongExists(contextSong)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("SoundOperatorVM", "Error ensuring song exists for playSong", e)
+            }
+        }
+        playerManager.playSong(song, contextList)
+    }
+
+    fun togglePlayPause() {
+        playerManager.togglePlayPause()
+    }
+
+    fun playNext() {
+        playerManager.playNext()
+    }
+
+    fun playPrevious() {
+        playerManager.playPrevious()
+    }
+
+    fun seekTo(positionMs: Long) {
+        playerManager.seekTo(positionMs)
+    }
+
+    fun seekRelative(offsetMs: Long) {
+        playerManager.seekRelative(offsetMs)
+    }
+
+    fun jumpToCue(percentage: Float) {
+        playerManager.jumpToCue(percentage)
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        playerManager.setPlaybackSpeed(speed)
+    }
+
+    fun toggleRepeatMode() {
+        playerManager.toggleRepeatMode()
+    }
+
+    fun toggleShuffle() {
+        playerManager.toggleShuffle()
+    }
+
+    fun toggleMasterMute() {
+        playerManager.toggleMasterMute()
+    }
+
+    fun toggleFavorite(songId: Long) {
+        val fallbackSong = _onlineMusicResults.value.firstOrNull { it.id == songId }
+            ?: playerManager.currentSong.value?.takeIf { it.id == songId }
+        viewModelScope.launch {
+            repository.toggleFavorite(songId, fallbackSong)
+        }
+    }
+
+    fun addToQueue(songId: Long) {
+        val fallbackSong = _onlineMusicResults.value.firstOrNull { it.id == songId }
+            ?: playerManager.currentSong.value?.takeIf { it.id == songId }
+        viewModelScope.launch {
+            repository.addToQueue(songId, fallbackSong)
+        }
+    }
+
+    fun playNextInQueue(songId: Long) {
+        val fallbackSong = _onlineMusicResults.value.firstOrNull { it.id == songId }
+            ?: playerManager.currentSong.value?.takeIf { it.id == songId }
+        viewModelScope.launch {
+            repository.playNextInQueue(songId, fallbackSong)
+        }
+    }
+
+    fun removeFromQueue(queueId: Long) {
+        viewModelScope.launch {
+            repository.removeFromQueue(queueId)
+        }
+    }
+
+    fun clearQueue() {
+        viewModelScope.launch {
+            repository.clearQueue()
+        }
+    }
+
+    fun createPlaylist(name: String, description: String, colorHex: String = "#00E5FF") {
+        viewModelScope.launch {
+            repository.createPlaylist(name, description, colorHex)
+        }
+    }
+
+    fun deletePlaylist(playlist: PlaylistEntity) {
+        viewModelScope.launch {
+            repository.deletePlaylist(playlist)
+        }
+    }
+
+    fun addSongToPlaylist(playlistId: Long, songId: Long) {
+        val fallbackSong = _onlineMusicResults.value.firstOrNull { it.id == songId }
+            ?: playerManager.currentSong.value?.takeIf { it.id == songId }
+        viewModelScope.launch {
+            repository.addSongToPlaylist(playlistId, songId, songFallback = fallbackSong)
+        }
+    }
+
+    fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
+        viewModelScope.launch {
+            repository.removeSongFromPlaylist(playlistId, songId)
+        }
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+        val clean = query.trim()
+        if (clean.length >= 2) {
+            searchOnlineMusic(clean)
+        }
+    }
+
+    fun searchOnlineMusic(rawQuery: String) {
+        val clean = rawQuery.trim().replace("\\s+".toRegex(), " ")
+        if (clean.isBlank()) {
+            return
+        }
+
+        onlineSearchJob?.cancel()
+        onlineSearchJob = viewModelScope.launch {
+            _isOnlineMusicSearching.value = true
+            _onlineMusicError.value = null
+            try {
+                val response = OnlineMusicClient.api.searchTracks(term = clean, limit = 25)
+                val tracks = response.results
+                    .filter { !it.previewUrl.isNullOrBlank() }
+                    .map { it.toSongEntity() }
+                _onlineMusicResults.value = tracks
+                if (tracks.isEmpty()) {
+                    _onlineMusicError.value = "No online tracks found for \"$clean\". Try another song or artist."
+                }
+            } catch (e: Exception) {
+                _onlineMusicError.value = "Online stream search unavailable. Please check network connection."
+            } finally {
+                _isOnlineMusicSearching.value = false
+            }
+        }
+    }
+
+    fun setSelectedCategoryFilter(category: CategoryEntity?) {
+        _selectedCategoryFilter.value = category
+    }
+
+    fun togglePackDownload(pack: MusicPackEntity) {
+        viewModelScope.launch {
+            repository.togglePackDownload(pack)
+        }
+    }
+
+    fun updateCrossfadeSec(seconds: Int) {
+        _crossfadeSec.value = seconds
+        viewModelScope.launch {
+            repository.setSetting("crossfade_sec", seconds.toString())
+        }
+    }
+
+    fun updateGapless(enabled: Boolean) {
+        _gaplessPlayback.value = enabled
+        viewModelScope.launch {
+            repository.setSetting("gapless_playback", enabled.toString())
+        }
+    }
+
+    fun updateDjHighContrast(enabled: Boolean) {
+        _djHighContrast.value = enabled
+        viewModelScope.launch {
+            repository.setSetting("dj_high_contrast", enabled.toString())
+        }
+    }
+
+    fun setTheme(themeId: String) {
+        if (_currentThemeId.value != themeId) {
+            _currentThemeId.value = themeId
+            viewModelScope.launch {
+                repository.setSetting("app_theme_id", themeId)
+            }
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            repository.clearHistory()
+        }
+    }
+
+    fun refreshAudioOutput() {
+        audioOutputHelper.refresh()
+    }
+
+    fun resetDemoData() {
+        viewModelScope.launch {
+            repository.clearQueue()
+            repository.clearHistory()
+            DatabaseInitializer.populateInitialData(getApplication(), database)
+        }
+    }
+
+    fun importLocalAudio(title: String, artist: String, filePath: String, durationMs: Long, bpm: Int) {
+        viewModelScope.launch {
+            val song = SongEntity(
+                title = title,
+                artist = artist,
+                album = "Imported Audio",
+                durationMs = durationMs,
+                filePath = filePath,
+                bpm = bpm,
+                musicalKey = "Auto / 8A",
+                cueNotes = "Imported from device storage",
+                coverColorHex = "#00E5FF",
+                isLocal = true
+            )
+            repository.insertSong(song)
         }
     }
 

@@ -95,11 +95,12 @@ fun LibraryScreen(
     val favoriteIds by viewModel.favoriteSongIds.collectAsState()
 
     val tabs = listOf("All Songs", "Categories", "Playlists", "Music Packs")
+    val activeColors = com.example.ui.theme.LocalDjColors.current
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DjObsidianBlack)
+            .background(activeColors.background)
             .padding(top = 16.dp)
     ) {
         // Library Header
@@ -113,13 +114,13 @@ fun LibraryScreen(
             Column {
                 Text(
                     text = "Event Music Library",
-                    color = DjTextPrimary,
+                    color = activeColors.textPrimary,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "${allSongs.size} tracks offline • High-Fidelity",
-                    color = DjTextSecondary,
+                    color = activeColors.textSecondary,
                     fontSize = 12.sp
                 )
             }

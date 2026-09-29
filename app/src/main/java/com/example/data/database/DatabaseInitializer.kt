@@ -15,13 +15,24 @@ import kotlinx.coroutines.withContext
 object DatabaseInitializer {
 
     suspend fun populateInitialData(context: Context, database: AppDatabase) = withContext(Dispatchers.IO) {
+        // 1. Ensure audio files are synthesized and present on disk on every app launch
+        val audioFiles = DemoAudioGenerator.ensureDemoAudioFiles(context)
+
         val songCount = database.songDao().getSongCount()
         if (songCount > 0) {
+            // Repair any missing or stale file paths from past runs/cache clears
+            val existingSongs = database.songDao().getAllSongsDirect()
+            existingSongs.forEach { song ->
+                if (song.isLocal && (song.filePath.isBlank() || !java.io.File(song.filePath).exists())) {
+                    val matchingFile = audioFiles.values.firstOrNull { it.contains(java.io.File(song.filePath).name) }
+                        ?: audioFiles.values.firstOrNull() ?: ""
+                    if (matchingFile.isNotBlank()) {
+                        database.songDao().updateSong(song.copy(filePath = matchingFile))
+                    }
+                }
+            }
             return@withContext
         }
-
-        // 1. Ensure audio files are synthesized and present
-        val audioFiles = DemoAudioGenerator.ensureDemoAudioFiles(context)
 
         // 2. Insert Categories
         val categories = listOf(

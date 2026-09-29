@@ -97,11 +97,12 @@ fun YouTubeScreen(
     val categories by viewModel.categories.collectAsState()
 
     val focusManager = LocalFocusManager.current
+    val activeColors = com.example.ui.theme.LocalDjColors.current
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DjObsidianBlack)
+            .background(activeColors.background)
             .padding(top = 16.dp, start = 16.dp, end = 16.dp)
     ) {
         // 1. Top Section Header

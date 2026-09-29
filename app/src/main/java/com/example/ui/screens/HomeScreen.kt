@@ -35,6 +35,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SpeakerGroup
 import androidx.compose.material.icons.filled.Stars
+import androidx.compose.material.icons.filled.Palette
+import com.example.ui.theme.DjThemes
+import com.example.ui.theme.LocalDjColors
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -88,15 +91,17 @@ fun HomeScreen(
     val isPlaying by viewModel.isPlaying.collectAsState()
 
     val featuredSongs = allSongs.take(8)
+    val currentThemeId by viewModel.currentThemeId.collectAsState()
+    val activeColors = LocalDjColors.current
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(DjObsidianBlack),
+            .background(activeColors.background),
         contentPadding = PaddingValues(bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // 1. TOP HEADER: Clean logo, status badge, and settings icon
+        // 1. TOP HEADER: Clean logo, status badge, theme switcher, and settings icon
         item {
             Row(
                 modifier = Modifier
@@ -113,13 +118,13 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(DjAmberGold),
+                            .background(activeColors.primary),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.GraphicEq,
                             contentDescription = "Logo",
-                            tint = DjObsidianBlack,
+                            tint = Color.Black,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -127,7 +132,7 @@ fun HomeScreen(
                     Column {
                         Text(
                             text = "SOUND OPERATOR",
-                            color = DjTextPrimary,
+                            color = activeColors.textPrimary,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 1.sp
@@ -140,11 +145,11 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .size(6.dp)
                                     .clip(CircleShape)
-                                    .background(DjNeonEmerald)
+                                    .background(activeColors.tertiary)
                             )
                             Text(
                                 text = "LIVE EVENT CONSOLE",
-                                color = DjTextSecondary,
+                                color = activeColors.textSecondary,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
@@ -153,19 +158,54 @@ fun HomeScreen(
                     }
                 }
 
-                IconButton(
-                    onClick = onSettingsClick,
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(DjDeepSurface)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "More & Settings",
-                        tint = DjTextSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    // Quick Stage Theme Cycler Pill
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(activeColors.surface)
+                            .border(1.dp, activeColors.border, RoundedCornerShape(20.dp))
+                            .clickable {
+                                val all = DjThemes.allThemes
+                                val idx = all.indexOfFirst { it.id == currentThemeId }
+                                val next = all[(idx + 1).coerceAtLeast(0) % all.size]
+                                viewModel.setTheme(next.id)
+                            }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(activeColors.primary)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = "Switch Theme",
+                            tint = activeColors.primary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onSettingsClick,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(activeColors.surface)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "More & Settings",
+                            tint = activeColors.textSecondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -177,8 +217,8 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(DjDeepSurface)
-                    .border(1.dp, DjBorderOutline, RoundedCornerShape(14.dp))
+                    .background(activeColors.surface)
+                    .border(1.dp, activeColors.border, RoundedCornerShape(14.dp))
                     .clickable { onSearchClick() }
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
@@ -189,12 +229,12 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Search",
-                        tint = DjAmberGold,
+                        tint = activeColors.primary,
                         modifier = Modifier.size(22.dp)
                     )
                     Text(
                         text = "Search songs, artists, wedding tracks...",
-                        color = DjTextTertiary,
+                        color = activeColors.textTertiary,
                         fontSize = 14.sp
                     )
                 }

@@ -25,10 +25,13 @@ data class PlayHistoryWithSong(
 interface PlayHistoryDao {
     @Query("""
         SELECT ph.id, ph.songId, ph.playedAt, ph.durationPlayedMs, ph.eventName,
-               s.title AS songTitle, s.artist AS songArtist, s.durationMs AS songDurationMs,
-               s.bpm AS songBpm, s.coverColorHex AS songCoverColorHex
+               COALESCE(s.title, 'Played Track') AS songTitle,
+               COALESCE(s.artist, 'Sound Operator') AS songArtist,
+               COALESCE(s.durationMs, ph.durationPlayedMs) AS songDurationMs,
+               COALESCE(s.bpm, 120) AS songBpm,
+               COALESCE(s.coverColorHex, '#00E5FF') AS songCoverColorHex
         FROM play_history ph
-        INNER JOIN songs s ON ph.songId = s.id
+        LEFT JOIN songs s ON ph.songId = s.id
         ORDER BY ph.playedAt DESC
         LIMIT 50
     """)

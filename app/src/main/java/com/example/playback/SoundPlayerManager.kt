@@ -18,6 +18,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -50,7 +51,7 @@ import kotlin.math.sin
 
 /**
  * Foreground MediaPlaybackService providing persistent background audio playback,
- * system lockscreen controls, and Android notification controls for both local and YouTube audio.
+ * system lockscreen controls, and Android notification controls for both local and online audio.
  */
 class SoundOperatorPlaybackService : MediaSessionService() {
 
@@ -77,6 +78,7 @@ class SoundOperatorPlaybackService : MediaSessionService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         val action = intent?.action
         val manager = SoundPlayerManager.getInstance(this)
 
@@ -93,24 +95,23 @@ class SoundOperatorPlaybackService : MediaSessionService() {
         }
 
         val notification = manager.buildNotification(this, mediaSession)
-        if (notification != null) {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    startForeground(
-                        NOTIFICATION_ID,
-                        notification,
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-                    )
-                } else {
-                    startForeground(NOTIFICATION_ID, notification)
-                }
-            } catch (_: Exception) {}
-        } else {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            ?: manager.buildFallbackNotification(this)
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e("PlaybackService", "Error calling startForeground", e)
         }
 
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -118,8 +119,9 @@ class SoundOperatorPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        // Do NOT release player here because SoundPlayerManager singleton owns the ExoPlayer instance.
+        // Releasing it here permanently bricks audio playback for all subsequent track changes.
         mediaSession?.run {
-            player.release()
             release()
             mediaSession = null
         }
@@ -133,7 +135,7 @@ class SoundOperatorPlaybackService : MediaSessionService() {
                 "Sound Operator Audio Playback",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Playback controls and status for DJ music & YouTube audio"
+                description = "Playback controls and status for DJ music & online audio"
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
@@ -157,7 +159,7 @@ class SoundOperatorPlaybackService : MediaSessionService() {
 
 /**
  * Unified playback manager responsible for audio focus, wake lock, foreground service coordination,
- * and seamless audio playback across local tracks and YouTube video streams.
+ * and seamless audio playback across local tracks and legitimate online streaming music.
  */
 class SoundPlayerManager private constructor(private val context: Context) {
 
@@ -165,10 +167,12 @@ class SoundPlayerManager private constructor(private val context: Context) {
     private var progressJob: Job? = null
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     private var audioFocusRequest: AudioFocusRequest? = null
 
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
     private var wakeLock: PowerManager.WakeLock? = null
+    private var isForegroundServiceRunning = false
 
     private val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).build().apply {
         val audioAttributes = AudioAttributes.Builder()
@@ -177,6 +181,8 @@ class SoundPlayerManager private constructor(private val context: Context) {
             .build()
         setAudioAttributes(audioAttributes, true)
         setHandleAudioBecomingNoisy(true)
+        // Ensure ExoPlayer keeps device CPU awake during screen-off playback
+        setWakeMode(C.WAKE_MODE_LOCAL)
     }
 
     private val _currentSong = MutableStateFlow<SongEntity?>(null)
@@ -315,7 +321,7 @@ class SoundPlayerManager private constructor(private val context: Context) {
                 )
             }
             if (wakeLock?.isHeld == false) {
-                wakeLock?.acquire(60 * 60 * 1000L) // 60 min safeguard
+                wakeLock?.acquire(120 * 60 * 1000L) // 120 min safeguard for events
             }
         } catch (_: Exception) {}
     }
@@ -337,25 +343,41 @@ class SoundPlayerManager private constructor(private val context: Context) {
             _currentYouTubeVideo.value = null
         }
 
-        _currentSong.value = song
+        // Validate local audio file existence: if file is missing, re-generate from DemoAudioGenerator
+        var targetSong = song
+        if (song.isLocal && !song.filePath.startsWith("http") && !song.filePath.startsWith("content://")) {
+            val file = File(song.filePath)
+            if (!file.exists() || file.length() < 100L) {
+                val demoFiles = DemoAudioGenerator.ensureDemoAudioFiles(context)
+                val fileName = file.name
+                val fallbackPath = demoFiles[fileName] ?: demoFiles.values.firstOrNull() ?: ""
+                if (fallbackPath.isNotBlank()) {
+                    targetSong = song.copy(filePath = fallbackPath)
+                }
+            }
+        }
+
+        _currentSong.value = targetSong
         if (playlist.isNotEmpty()) {
             _currentPlaylist.value = playlist
-        } else if (_currentPlaylist.value.none { it.id == song.id }) {
-            _currentPlaylist.value = listOf(song)
+        } else if (_currentPlaylist.value.none { it.id == targetSong.id }) {
+            _currentPlaylist.value = listOf(targetSong)
         }
 
         try {
             requestAudioFocus()
-            loadArtwork(song.coverColorHex, true)
-            val mediaItem = buildMediaItem(song)
+            loadArtwork(targetSong.coverColorHex, targetSong.isLocal)
+            val mediaItem = buildMediaItem(targetSong)
             exoPlayer.setMediaItem(mediaItem)
             exoPlayer.prepare()
             exoPlayer.play()
-            _durationMs.value = song.durationMs
-            onSongChanged?.invoke(song)
+            _durationMs.value = targetSong.durationMs
+            onSongChanged?.invoke(targetSong)
             acquireWakeLock()
             updateForegroundNotification()
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.e("SoundPlayerManager", "Failed to play song: ${targetSong.title}", e)
+        }
     }
 
     fun onYouTubeStarted(video: YouTubeVideoItem) {
@@ -642,25 +664,75 @@ class SoundPlayerManager private constructor(private val context: Context) {
     // --- Foreground Service Notification ---
 
     fun updateForegroundNotification() {
-        val intent = Intent(context, SoundOperatorPlaybackService::class.java).apply {
-            action = SoundOperatorPlaybackService.ACTION_UPDATE
-        }
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+        val ytVideo = _currentYouTubeVideo.value
+        val localSong = _currentSong.value
+
+        if (ytVideo == null && localSong == null) {
+            if (isForegroundServiceRunning) {
+                stopForegroundService()
             }
-        } catch (_: Exception) {}
+            return
+        }
+
+        if (!isForegroundServiceRunning) {
+            val intent = Intent(context, SoundOperatorPlaybackService::class.java).apply {
+                action = SoundOperatorPlaybackService.ACTION_START
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                isForegroundServiceRunning = true
+            } catch (e: Exception) {
+                Log.e("SoundPlayerManager", "Failed to start foreground service", e)
+            }
+        } else {
+            // Already started in foreground: update directly via NotificationManager
+            // to prevent Android 12+ BackgroundServiceStartNotAllowedException
+            try {
+                val notification = buildNotification(context, null)
+                if (notification != null) {
+                    notificationManager.notify(SoundOperatorPlaybackService.NOTIFICATION_ID, notification)
+                }
+            } catch (e: Exception) {
+                Log.e("SoundPlayerManager", "Failed to update notification", e)
+            }
+        }
     }
 
     fun stopForegroundService() {
+        isForegroundServiceRunning = false
         val intent = Intent(context, SoundOperatorPlaybackService::class.java).apply {
             action = SoundOperatorPlaybackService.ACTION_STOP
         }
         try {
             context.startService(intent)
         } catch (_: Exception) {}
+        try {
+            notificationManager.cancel(SoundOperatorPlaybackService.NOTIFICATION_ID)
+        } catch (_: Exception) {}
+    }
+
+    fun buildFallbackNotification(serviceContext: Context): Notification {
+        val contentIntent = Intent(serviceContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentPendingIntent = PendingIntent.getActivity(
+            serviceContext,
+            0,
+            contentIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(serviceContext, SoundOperatorPlaybackService.CHANNEL_ID)
+            .setContentTitle("Sound Operator Live")
+            .setContentText("Playback session active")
+            .setSmallIcon(R.drawable.ic_stat_music)
+            .setContentIntent(contentPendingIntent)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
     }
 
     fun buildNotification(serviceContext: Context, session: MediaSession? = null): Notification? {
@@ -679,7 +751,9 @@ class SoundPlayerManager private constructor(private val context: Context) {
 
         val title = ytVideo?.title ?: localSong?.title ?: "Sound Operator"
         val subtitle = if (ytVideo != null) {
-            "${ytVideo.channelTitle} • YouTube Playback"
+            "${ytVideo.channelTitle} • YouTube Stream"
+        } else if (localSong?.isLocal == false) {
+            "${localSong.artist} • Online Background Stream"
         } else {
             "${localSong?.artist} • ${localSong?.album}"
         }
@@ -729,11 +803,12 @@ class SoundPlayerManager private constructor(private val context: Context) {
         val playPauseIcon = if (isPlaybackActive) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
         val playPauseLabel = if (isPlaybackActive) "Pause" else "Play"
 
+        // Use valid custom vector drawable ic_stat_music instead of mipmap adaptive icon
         val builder = NotificationCompat.Builder(serviceContext, SoundOperatorPlaybackService.CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(subtitle)
             .setSubText("Sound Operator")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_music)
             .setContentIntent(contentPendingIntent)
             .setOngoing(isPlaybackActive)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

@@ -85,18 +85,21 @@ fun SoundOperatorApp(
 
     var isNowPlayingExpanded by remember { mutableStateOf(false) }
 
+    val djColors = com.example.ui.theme.LocalDjColors.current
+
     // Intercept back button when Now Playing is full-screen
     BackHandler(enabled = isNowPlayingExpanded) {
         isNowPlayingExpanded = false
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(DjObsidianBlack)) {
+    Box(modifier = Modifier.fillMaxSize().background(djColors.background)) {
         Scaffold(
+            containerColor = djColors.background,
             bottomBar = {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(DjObsidianBlack)
+                        .background(djColors.background)
                 ) {
                     // Docked Mini-Player Bar (shown when song or video is playing and full player is not expanded)
                     if (activeYouTubeVideo != null && !isYouTubeExpanded) {
@@ -126,12 +129,12 @@ fun SoundOperatorApp(
 
                     // Bottom Navigation Bar
                     NavigationBar(
-                        containerColor = DjDeepSurface,
-                        contentColor = DjTextPrimary,
+                        containerColor = djColors.surface,
+                        contentColor = djColors.textPrimary,
                         tonalElevation = 8.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(width = 0.5.dp, color = DjBorderOutline)
+                            .border(width = 0.5.dp, color = djColors.border)
                     ) {
                         Screen.bottomNavItems.forEach { screen ->
                             val selected = currentRoute == screen.route
@@ -164,10 +167,10 @@ fun SoundOperatorApp(
                                 },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = Color.Black,
-                                    selectedTextColor = DjAmberGold,
-                                    indicatorColor = DjAmberGold,
-                                    unselectedIconColor = DjTextSecondary,
-                                    unselectedTextColor = DjTextTertiary
+                                    selectedTextColor = djColors.primary,
+                                    indicatorColor = djColors.primary,
+                                    unselectedIconColor = djColors.textSecondary,
+                                    unselectedTextColor = djColors.textTertiary
                                 )
                             )
                         }

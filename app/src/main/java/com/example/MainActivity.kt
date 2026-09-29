@@ -8,8 +8,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.SoundOperatorApp
 import com.example.ui.theme.MyApplicationTheme
+import com.example.viewmodel.SoundOperatorViewModel
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -18,8 +22,10 @@ class MainActivity : ComponentActivity() {
     requestNotificationPermission()
     enableEdgeToEdge()
     setContent {
-      MyApplicationTheme {
-        SoundOperatorApp()
+      val soundViewModel: SoundOperatorViewModel = viewModel()
+      val activeThemeId by soundViewModel.currentThemeId.collectAsState()
+      MyApplicationTheme(themeId = activeThemeId) {
+        SoundOperatorApp(viewModel = soundViewModel)
       }
     }
   }
