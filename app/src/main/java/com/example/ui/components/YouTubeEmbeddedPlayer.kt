@@ -179,9 +179,10 @@ fun YouTubeEmbeddedPlayer(
 ) {
     val context = LocalContext.current
     val applicationId = context.packageName // Real applicationId: com.aistudio.soundoperator.djops
-    // YouTube requires an app-identified HTTPS Referer for embedded playback in Android WebView.
-    val baseUrl = "https://$applicationId/"
-    val refererHeader = "https://$applicationId"
+    // Android WebView local documents need the real app-assets origin for YouTube embeds.
+    // The package-name HTTPS host can trigger YouTube embedded-player errors.
+    val baseUrl = "https://appassets.androidplatform.net/"
+    val refererHeader = "https://appassets.androidplatform.net"
     val webViewVersion = remember { getDeviceWebViewVersion(context) }
 
     var playbackMode by remember { mutableStateOf(PlaybackMode.OPTION_A_BASE_URL) }
