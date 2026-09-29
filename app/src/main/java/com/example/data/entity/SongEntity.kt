@@ -17,5 +17,7 @@ data class SongEntity(
     val cueNotes: String = "",
     val coverColorHex: String = "#FF9800",
     val isLocal: Boolean = true,
-    val addedAt: Long = System.currentTimeMillis()
+    val addedAt: Long = System.currentTimeMillis(),
+    val contentHash: String = "",
+    val source: String = "local"
 )
