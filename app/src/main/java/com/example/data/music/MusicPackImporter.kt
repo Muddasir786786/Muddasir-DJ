@@ -82,7 +82,7 @@ object MusicPackImporter {
             filePath = file.absolutePath,
             bpm = estimatedBpm(haystack),
             musicalKey = "Unknown",
-            cueNotes = "Imported music pack • \${categories.joinToString(", ")}",
+            cueNotes = "Imported music pack • ${categories.joinToString(", ")}",
             coverColorHex = colorFor(categories.firstOrNull()),
             isLocal = true
         )
