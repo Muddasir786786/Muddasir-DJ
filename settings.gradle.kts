@@ -23,3 +23,4 @@ dependencyResolutionManagement {
 rootProject.name = "Sound Operator"
 
 include(":app")
+include(":music_preload")
