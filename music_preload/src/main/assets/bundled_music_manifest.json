@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "trackCount": 70,
+  "totalBytes": 481630104,
+  "extraction": "stream_zip_to_app_private_storage",
+  "categories": ["mehndi", "baraat", "walima", "dance", "slow", "entry", "dj"],
+  "archives": [
+    {"fileName":"My_Music_Library.zip (1).zip","sizeBytes":33853129,"sha256":"7b15e3eab75940bc27121361902f6dafaed8d307508a031b558525be15e6160f"},
+    {"fileName":"My_Music_Library.zip.zip","sizeBytes":84946074,"sha256":"73ed45403fab54fcd7f3c4e86830a98d275af97812048cb1790813deee434d1e"},
+    {"fileName":"My_Music_Library.zip1.zip","sizeBytes":90362676,"sha256":"10f18e26c6d123e4925b9d94f5b2c4e8dfe1a577fed519f9ff89f80bd8d0f79d"},
+    {"fileName":"My_Music_Library.zip11.zip","sizeBytes":213215333,"sha256":"1fe894d59640e2e408c519c60cc12f65d39a7b816600122b50a90037b63bad94"},
+    {"fileName":"My_Music_Library.zip4.zip","sizeBytes":44029233,"sha256":"5de05ba6fa56e79bc75f8dd09b8b173b487cd51fe264dfbd9f85a40342075834"}
+  ]
+}
