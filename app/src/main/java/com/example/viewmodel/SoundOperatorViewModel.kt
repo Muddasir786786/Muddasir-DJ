@@ -273,7 +273,7 @@ class SoundOperatorViewModel(application: Application) : AndroidViewModel(applic
                 }
             } catch (e: Exception) {
                 android.util.Log.e("SoundOperatorVM", "Music pack import failed", e)
-                _musicImportStatus.value = "Music pack import failed: \${e.localizedMessage ?: "invalid ZIP"}"
+                _musicImportStatus.value = "Music pack import failed: ${e.localizedMessage ?: "invalid ZIP"}"
             }
         }
     }
