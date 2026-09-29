@@ -52,8 +52,18 @@ jobs:
             echo "KEY_PASSWORD=android"
           } >> "$GITHUB_ENV"
 
-      - name: Build release APK
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
+      - name: Build release APK and App Bundle
+        run: |
+          gradle :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace
+
+      - name: Check music asset payload
+        run: |
+          count="$(find music_preload/src/main/assets -type f ! -name bundled_music_manifest.json | wc -l)"
+          if [ "$count" -eq 0 ]; then
+            echo "::warning::Music asset pack code/manifest is configured, but the 70-track ZIP payload is not stored in the public Git repository."
+          else
+            echo "Music asset payload files: $count"
+          fi
 
       - name: Verify installable APK
         run: |
@@ -70,9 +80,23 @@ jobs:
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
           "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$APK"
 
+      - name: Verify App Bundle and asset pack wiring
+        run: |
+          AAB="app/build/outputs/bundle/release/app-release.aab"
+          test -s "$AAB"
+          unzip -l "$AAB" | grep -q "music_preload/manifest/AndroidManifest.xml"
+          unzip -l "$AAB" | grep -q "music_preload/assets/bundled_music_manifest.json"
+
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-bundle
+          path: app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
