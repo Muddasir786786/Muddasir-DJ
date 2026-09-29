@@ -9,6 +9,7 @@ import com.example.data.entity.SettingEntity
 import com.example.data.entity.SongCategoryEntity
 import com.example.data.entity.SongEntity
 import com.example.playback.DemoAudioGenerator
+import com.example.data.music.BundledMusicInstaller
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -31,6 +32,7 @@ object DatabaseInitializer {
                     }
                 }
             }
+            BundledMusicInstaller.installIfAvailable(context, database)
             return@withContext
         }
 
@@ -101,6 +103,7 @@ object DatabaseInitializer {
             )
         )
         database.categoryDao().insertCategories(categories)
+        BundledMusicInstaller.installIfAvailable(context, database)
 
         // 3. Insert Demo Songs
         val rawSongs = listOf(
