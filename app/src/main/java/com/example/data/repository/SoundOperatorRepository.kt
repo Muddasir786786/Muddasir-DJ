@@ -54,6 +54,25 @@ class SoundOperatorRepository(private val database: AppDatabase) {
 
     suspend fun updateSong(song: SongEntity) = database.songDao().updateSong(song)
 
+    suspend fun importTracks(tracks: List<ImportedTrack>): Int {
+        var imported = 0
+        for (track in tracks) {
+            if (database.songDao().getSongByFilePath(track.song.filePath) != null) continue
+            val categoryIds = track.categorySlugs.mapNotNull { slug ->
+                database.categoryDao().getCategoryBySlug(slug)?.id
+            }
+            database.songDao().insertSong(track.song).also { songId ->
+                if (categoryIds.isNotEmpty()) {
+                    database.songDao().insertSongCategories(
+                        categoryIds.map { categoryId -> SongCategoryEntity(songId, categoryId) }
+                    )
+                }
+            }
+            imported++
+        }
+        return imported
+    }
+
     suspend fun deleteSong(song: SongEntity) = database.songDao().deleteSong(song)
 
     // Categories
